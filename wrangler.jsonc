@@ -45,7 +45,9 @@
 		"ROOT_DOMAIN": "pixolateds.com",
 		// Public base URL for photos (R2 bucket custom domain).
 		// In local dev, /api/media/[...key] serves from the local R2 simulator instead.
-		"MEDIA_BASE_URL": "https://media.pixolateds.com"
+		"MEDIA_BASE_URL": "https://media.pixolateds.com",
+		// Comma-separated allowlist of admin emails. Empty = allow everyone.
+		"ALLOWED_ADMIN_EMAILS": ""
 	},
 	"routes": [
 		{ "pattern": "*.pixolateds.com/*", "zone_name": "pixolateds.com" }

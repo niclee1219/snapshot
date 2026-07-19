@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { getCompany } from "@/lib/auth";
+import { requireOwnedEvent } from "@/lib/auth";
 import { getDbAsync } from "@/db";
-import { events, photos } from "@/db/schema";
+import { photos } from "@/db/schema";
 import { getMediaBase, mediaUrl } from "@/lib/media";
 import { EventHeader } from "./event-header";
 import { EventSettingsForm } from "./event-settings-form";
@@ -14,13 +14,13 @@ export default async function EventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const company = await getCompany();
-  if (!company) notFound();
+  const { company, event } = await requireOwnedEvent(id).catch(() => ({
+    company: null,
+    event: null,
+  }));
+  if (!company || !event) notFound();
 
   const db = await getDbAsync();
-  const event = await db.select().from(events).where(eq(events.id, id)).get();
-  if (!event || event.companyId !== company.id) notFound();
-
   const rows = await db
     .select()
     .from(photos)

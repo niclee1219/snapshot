@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { count, desc, eq } from "drizzle-orm";
-import { getCompany } from "@/lib/auth";
+import { getActiveCompany } from "@/lib/auth";
 import { getDbAsync } from "@/db";
 import { events, photos } from "@/db/schema";
 import { CreateEventForm } from "./create-event-form";
 
 export default async function AdminDashboard() {
-  const company = await getCompany();
+  const company = await getActiveCompany();
   if (!company) redirect("/admin/onboarding");
 
   const db = await getDbAsync();

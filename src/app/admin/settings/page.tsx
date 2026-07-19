@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { getCompany } from "@/lib/auth";
+import { getActiveCompany } from "@/lib/auth";
 import { getMediaBase, mediaUrl } from "@/lib/media";
 import { SettingsForm } from "./settings-form";
 
 export default async function SettingsPage() {
-  const company = await getCompany();
+  const company = await getActiveCompany();
   if (!company) redirect("/admin/onboarding");
   const mediaBase = await getMediaBase();
 
