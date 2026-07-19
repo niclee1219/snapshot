@@ -1,0 +1,57 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "snapshot",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-07-19",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".open-next/assets"
+	},
+	"images": {
+		"binding": "IMAGES"
+	},
+	"services": [
+		{
+			// Self-reference service binding, the service name must match the worker name
+			// see https://opennext.js.org/cloudflare/caching
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "snapshot"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "pixolateds-db",
+			"database_id": "ab258794-fc9f-46de-b5bb-5b521fa5a8fe",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "pixolateds-media"
+		}
+	],
+	"vars": {
+		// Apex zone; subdomains are matched against this in middleware.
+		"ROOT_DOMAIN": "pixolateds.com",
+		// Public base URL for photos (R2 bucket custom domain).
+		// In local dev, /api/media/[...key] serves from the local R2 simulator instead.
+		"MEDIA_BASE_URL": "https://media.pixolateds.com"
+	},
+	"routes": [
+		{ "pattern": "*.pixolateds.com/*", "zone_name": "pixolateds.com" }
+	],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true
+}
