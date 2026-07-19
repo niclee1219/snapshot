@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Lightbox } from "./lightbox";
 import { JustifiedGrid } from "./justified-grid";
 import { Intro } from "./intro";
+import { formatEventDate } from "./format-date";
 import {
   canShareFiles,
   downloadSingle,
@@ -58,10 +59,18 @@ export function Gallery({
   // and content underneath stays free of entrance-animation classes until it flips.
   // The reduced-motion check itself lives inside <Intro>, not here: it needs a
   // browser-only matchMedia read, so it's deferred to an effect there and reported
-  // back via onDone — see intro.tsx for why that's the safe way to avoid a
-  // hydration-mismatch while still showing no visible flash.
+  // back via onReveal/onDone — see intro.tsx for why that's the safe way to avoid
+  // a hydration-mismatch while still showing no visible flash.
+  //
+  // `revealed` and `introMounted` are deliberately separate: `revealed` flips the
+  // instant the intro's fade-out *starts* (its onReveal), so the gallery's
+  // `.tile-in` stagger plays concurrently, underneath the still-dissolving
+  // overlay — no un-animated flash-through, no snap-back. `introMounted` only
+  // flips once the fade has visually finished (onDone), which is when <Intro>
+  // actually unmounts.
   const hasIntro = Boolean(coverUrl);
   const [revealed, setRevealed] = useState(!hasIntro);
+  const [introMounted, setIntroMounted] = useState(hasIntro);
 
   const toggle = useCallback((id: string) => {
     setSelected((prev) => {
@@ -132,12 +141,13 @@ export function Gallery({
   return (
     <div style={accent ? { ["--accent" as string]: accent } : undefined}>
       {/* ── Cinematic intro ── */}
-      {hasIntro && !revealed && coverUrl && (
+      {hasIntro && introMounted && coverUrl && (
         <Intro
           coverUrl={coverUrl}
           eventName={eventName}
           eventDate={eventDate}
-          onDone={() => setRevealed(true)}
+          onReveal={() => setRevealed(true)}
+          onDone={() => setIntroMounted(false)}
         />
       )}
 
@@ -292,14 +302,4 @@ export function Gallery({
       </footer>
     </div>
   );
-}
-
-export function formatEventDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }

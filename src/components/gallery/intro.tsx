@@ -7,7 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { formatEventDate } from "./gallery";
+import { formatEventDate } from "./format-date";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -32,6 +32,12 @@ type Props = {
   coverUrl: string;
   eventName: string;
   eventDate?: string | null;
+  /** Fired the instant the fade-out starts (auto-dismiss or skip) — this is
+   * when the parent should flip its `revealed` state so the gallery's
+   * `.tile-in` stagger plays *underneath* the still-dissolving overlay. */
+  onReveal: () => void;
+  /** Fired FADE_MS later, once the fade-out has visually finished — this is
+   * when the parent should unmount <Intro>. */
   onDone: () => void;
 };
 
@@ -42,15 +48,22 @@ const FADE_MS = 300;
  * Full-screen cinematic intro shown once per gallery visit (sessionless — no storage).
  *
  * Timing: auto-dismiss fires at AUTO_DISMISS_MS, which starts the CSS fade-out
- * (`gallery-intro-fade-out`, FADE_MS). `onDone` is called AFTER the fade finishes,
- * not when it starts — there's no exit-animation library in this project, so once
- * the parent unmounts this component (in response to onDone) any in-flight CSS
- * transition is discarded immediately. Waiting for the fade to complete keeps the
- * dismiss visually whole. The reveal still feels connected because the gallery's
- * own `.tile-in` stagger begins the instant this component is gone — there's no
- * added pause between "intro finished fading" and "grid starts animating in".
+ * (`gallery-intro-fade-out`, FADE_MS). `onReveal` fires at the START of that
+ * fade (not the end): the parent flips `revealed` immediately, so the gallery's
+ * `.tile-in` stagger begins playing concurrently, underneath the still-opaque
+ * (and dissolving) overlay — a connected reveal, not a snap. `onDone` fires
+ * FADE_MS later, once the fade has visually finished, and is the parent's cue
+ * to unmount this component. Splitting the two matters because there's no
+ * exit-animation library here: if the parent unmounted on `onReveal` alone,
+ * the in-flight CSS opacity transition would be discarded mid-flight.
  */
-export function Intro({ coverUrl, eventName, eventDate, onDone }: Props) {
+export function Intro({
+  coverUrl,
+  eventName,
+  eventDate,
+  onReveal,
+  onDone,
+}: Props) {
   // useSyncExternalStore is the React-blessed way to read a browser-only media
   // query with an SSR fallback: it renders `getServerSnapshot` (false — motion
   // assumed fine) for both the server HTML and the client's first hydration
@@ -69,20 +82,25 @@ export function Intro({ coverUrl, eventName, eventDate, onDone }: Props) {
   const [fading, setFading] = useState(false);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onRevealRef = useRef(onReveal);
   const onDoneRef = useRef(onDone);
 
-  // Keep the ref current without mutating it during render (refs may only be
-  // written in effects/handlers). Runs before the effects below in the same
-  // commit, since hooks fire in declaration order.
+  // Keep the refs current without mutating them during render (refs may only
+  // be written in effects/handlers). Runs before the effects below in the
+  // same commit, since hooks fire in declaration order.
   useEffect(() => {
+    onRevealRef.current = onReveal;
     onDoneRef.current = onDone;
-  }, [onDone]);
+  }, [onReveal, onDone]);
 
   // JS-layer reduced-motion guard: once useSyncExternalStore reports reduced
-  // motion, call onDone immediately so the parent reveals the gallery without
-  // ever waiting on the intro's timers.
+  // motion, skip straight to both callbacks — reveal and done, immediately,
+  // once — so the parent shows the gallery without ever waiting on timers.
   useEffect(() => {
-    if (reducedMotion) onDoneRef.current();
+    if (reducedMotion) {
+      onRevealRef.current();
+      onDoneRef.current();
+    }
   }, [reducedMotion]);
 
   const skip = useCallback(() => {
@@ -100,9 +118,13 @@ export function Intro({ coverUrl, eventName, eventDate, onDone }: Props) {
     };
   }, [reducedMotion]);
 
-  // Once fading starts (auto-dismiss or skip), call onDone after the fade finishes.
+  // The moment fading starts (auto-dismiss or skip — both just set `fading`),
+  // reveal the gallery underneath so its stagger plays concurrently with the
+  // overlay dissolving above it, then unmount `FADE_MS` later once the fade
+  // has visually finished.
   useEffect(() => {
     if (!fading) return;
+    onRevealRef.current();
     fadeTimer.current = setTimeout(() => onDoneRef.current(), FADE_MS);
     return () => {
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
