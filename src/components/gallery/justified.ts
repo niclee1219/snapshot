@@ -8,7 +8,9 @@ function aspectRatioOf(dim: { width: number; height: number } | undefined): numb
   if (!dim) return 1;
   const { width, height } = dim;
   if (!width || !height || width <= 0 || height <= 0) return 1;
-  return width / height;
+  const ratio = width / height;
+  if (!Number.isFinite(ratio)) return 1;
+  return ratio;
 }
 
 export function computeJustifiedRows(

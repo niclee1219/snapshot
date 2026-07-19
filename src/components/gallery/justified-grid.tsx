@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { computeJustifiedRows } from "./justified";
 import type { GalleryPhoto } from "./gallery";
 
@@ -64,7 +64,10 @@ export function JustifiedGrid({
   }, []);
 
   const targetRowHeight = width < 640 ? 150 : 240;
-  const rows = computeJustifiedRows(photos, width, targetRowHeight, GAP);
+  const rows = useMemo(
+    () => computeJustifiedRows(photos, width, targetRowHeight, GAP),
+    [photos, width, targetRowHeight],
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-0 pb-32 pt-0.5 sm:px-5">
@@ -92,7 +95,7 @@ export function JustifiedGrid({
               return (
                 <div
                   key={photo.id}
-                  className={revealed ? "tile-in relative" : "relative"}
+                  className={revealed ? "tile-in relative shrink-0" : "relative shrink-0"}
                   style={{
                     width: ratio * row.height,
                     height: row.height,
