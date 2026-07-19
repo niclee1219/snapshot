@@ -69,10 +69,19 @@ export function EventHeader({
   }
 
   async function copyLink() {
-    await navigator.clipboard.writeText(event.publicUrl);
-    setCopied(true);
-    toast.success("Link copied");
-    setTimeout(() => setCopied(false), 1500);
+    if (!navigator?.clipboard) {
+      toast.error("Couldn't copy link");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(event.publicUrl);
+      setCopied(true);
+      toast.success("Link copied");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy link");
+    }
   }
 
   return (
