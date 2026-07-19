@@ -103,7 +103,7 @@ export default async function EventGalleryPage({
     : undefined;
 
   const db = await getDbAsync();
-  const coverRow =
+  const explicitCoverRow =
     !cover && event.coverPhotoId
       ? await db
           .select()
@@ -111,6 +111,11 @@ export default async function EventGalleryPage({
           .where(eq(photos.id, event.coverPhotoId))
           .get()
       : cover;
+
+  // Fall back to the first visible photo (in the event's configured sort
+  // order) when there's no explicit cover — or the explicit cover photo
+  // no longer exists. Feeds both the hero image and the cinematic intro.
+  const coverRow = explicitCoverRow ?? rows[0];
 
   return (
     <div className={surfaceClass}>
