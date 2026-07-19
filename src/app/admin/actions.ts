@@ -149,12 +149,23 @@ export async function updateCompany(
 
   if (!name) return { error: "Company name is required." };
 
+  const themeField = formData.get("theme");
+  let themeUpdate: { theme?: "dark" | "light" } = {};
+  if (themeField !== null) {
+    const themeStr = String(themeField);
+    if (themeStr !== "dark" && themeStr !== "light") {
+      return { error: "Invalid theme." };
+    }
+    themeUpdate = { theme: themeStr };
+  }
+
   const db = await getDbAsync();
   await db
     .update(companies)
     .set({
       name,
       accentColor,
+      ...themeUpdate,
       ...(typeof logoKey === "string" && logoKey !== ""
         ? { logoKey }
         : {}),
@@ -235,10 +246,23 @@ export async function updateEvent(
     urlSlug = await uniqueEventSlug(company.id, requestedSlug, event.id);
   }
 
+  const themeField = formData.get("theme");
+  let themeUpdate: { theme?: "dark" | "light" | null } = {};
+  if (themeField !== null) {
+    const themeStr = String(themeField);
+    if (themeStr === "" || themeStr === "default") {
+      themeUpdate = { theme: null };
+    } else if (themeStr === "dark" || themeStr === "light") {
+      themeUpdate = { theme: themeStr };
+    } else {
+      return { error: "Invalid theme." };
+    }
+  }
+
   const db = await getDbAsync();
   await db
     .update(events)
-    .set({ name, eventDate, welcomeMessage, accentColor, urlSlug })
+    .set({ name, eventDate, welcomeMessage, accentColor, urlSlug, ...themeUpdate })
     .where(eq(events.id, event.id));
   revalidatePath(`/admin/events/${event.id}`);
   return null;

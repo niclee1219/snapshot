@@ -1,7 +1,31 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  ExternalLinkIcon,
+  EyeIcon,
+} from "lucide-react";
+import { toast } from "sonner";
 import { deleteEvent, setEventPublished } from "../../actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { formatBytes } from "@/lib/format";
 
 export function EventHeader({
   event,
@@ -11,74 +35,132 @@ export function EventHeader({
     name: string;
     published: boolean;
     publicUrl: string;
-    previewPath: string;
+    eventDate: string | null;
+    photoCount: number;
+    storageBytes: number;
     viewCount: number;
     downloadCount: number;
   };
 }) {
-  const [pending, startTransition] = useTransition();
+  const [publishPending, startPublish] = useTransition();
+  const [deletePending, startDelete] = useTransition();
   const [copied, setCopied] = useState(false);
+
+  function togglePublish() {
+    startPublish(async () => {
+      try {
+        await setEventPublished(event.id, !event.published);
+      } catch (e) {
+        unstable_rethrow(e);
+        toast.error("Couldn't update publish state");
+      }
+    });
+  }
+
+  function confirmDelete() {
+    startDelete(async () => {
+      try {
+        await deleteEvent(event.id);
+      } catch (e) {
+        unstable_rethrow(e);
+        toast.error("Couldn't delete event");
+      }
+    });
+  }
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(event.publicUrl);
+    setCopied(true);
+    toast.success("Link copied");
+    setTimeout(() => setCopied(false), 1500);
+  }
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-          <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">
-            {event.publicUrl}
-          </code>
-          <button
-            onClick={async () => {
-              await navigator.clipboard.writeText(event.publicUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            }}
-            className="text-xs text-zinc-600 underline-offset-2 hover:underline"
-          >
-            {copied ? "Copied!" : "Copy link"}
-          </button>
-          <a
-            href={event.previewPath}
-            target="_blank"
-            className="text-xs text-zinc-600 underline-offset-2 hover:underline"
-          >
-            Preview ↗
-          </a>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+            {event.name}
+          </h1>
+          <Badge variant={event.published ? "default" : "secondary"}>
+            {event.published ? "Published" : "Draft"}
+          </Badge>
         </div>
-        <p className="mt-2 text-xs text-zinc-500">
-          {event.viewCount} views · {event.downloadCount} downloads
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span>{event.eventDate ?? "No date"}</span>
+          <span>·</span>
+          <span>{event.photoCount} photos</span>
+          <span>·</span>
+          <span>{formatBytes(event.storageBytes)} originals</span>
+          <span className="inline-flex items-center gap-1">
+            <EyeIcon className="size-3" />
+            {event.viewCount}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <DownloadIcon className="size-3" />
+            {event.downloadCount}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          <a
+            href={event.publicUrl}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            {event.publicUrl.replace(/^https?:\/\//, "")}
+            <ExternalLinkIcon className="size-3" />
+          </a>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copy link"
+            onClick={copyLink}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          disabled={pending}
-          onClick={() =>
-            startTransition(() => setEventPublished(event.id, !event.published))
-          }
-          className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-40 ${
-            event.published
-              ? "border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
-              : "bg-emerald-600 text-white hover:bg-emerald-500"
-          }`}
+        <Button
+          variant={event.published ? "outline" : "default"}
+          disabled={publishPending}
+          onClick={togglePublish}
         >
+          {publishPending && <Spinner data-icon="inline-start" />}
           {event.published ? "Unpublish" : "Publish"}
-        </button>
-        <button
-          disabled={pending}
-          onClick={() => {
-            if (
-              confirm(
-                "Delete this event and all its photos? This cannot be undone.",
-              )
-            ) {
-              startTransition(() => deleteEvent(event.id));
-            }
-          }}
-          className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-        >
-          Delete
-        </button>
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={<Button variant="destructive" disabled={deletePending} />}
+          >
+            Delete
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes &ldquo;{event.name}&rdquo; and all
+                its photos. This can&apos;t be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletePending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={deletePending}
+                onClick={confirmDelete}
+              >
+                {deletePending && <Spinner data-icon="inline-start" />}
+                Delete event
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

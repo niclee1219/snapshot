@@ -1,8 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useId, useState } from "react";
 import { claimSlug, type ActionState } from "../actions";
 import { validateCompanySlug, slugify } from "@/lib/slugs";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 type Availability =
   | { state: "idle" }
@@ -13,6 +23,8 @@ type Availability =
 type ServerCheck = { slug: string; available: boolean; reason?: string };
 
 export function OnboardingForm() {
+  const nameId = useId();
+  const slugId = useId();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     claimSlug,
     null,
@@ -59,69 +71,64 @@ export function OnboardingForm() {
         : { state: "checking" };
 
   return (
-    <form action={formAction} className="mt-6 space-y-5">
-      <div>
-        <label className="block text-sm font-medium" htmlFor="name">
-          Company name
-        </label>
-        <input
-          id="name"
-          name="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
-          placeholder="Acme Corp"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium" htmlFor="slug">
-          Subdomain
-        </label>
-        <div className="mt-1 flex items-center overflow-hidden rounded-md border border-zinc-300 focus-within:border-zinc-500">
-          <input
-            id="slug"
-            name="slug"
-            value={effectiveSlug}
-            onChange={(e) => {
-              setSlugTouched(true);
-              setSlug(e.target.value.toLowerCase());
-            }}
+    <form action={formAction}>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={nameId}>Company name</FieldLabel>
+          <Input
+            id={nameId}
+            name="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             required
-            className="w-full px-3 py-2 text-sm focus:outline-none"
-            placeholder="acme"
-            autoComplete="off"
-            spellCheck={false}
+            autoFocus
+            placeholder="Acme Corp"
           />
-          <span className="whitespace-nowrap bg-zinc-100 px-3 py-2 text-sm text-zinc-500">
-            .pixolateds.com
-          </span>
-        </div>
-        <p className="mt-1 min-h-5 text-xs">
-          {availability.state === "checking" && (
-            <span className="text-zinc-500">Checking availability…</span>
-          )}
-          {availability.state === "available" && (
-            <span className="text-emerald-600">
-              {effectiveSlug}.pixolateds.com is available
+        </Field>
+
+        <Field data-invalid={availability.state === "unavailable" || undefined}>
+          <FieldLabel htmlFor={slugId}>Subdomain</FieldLabel>
+          <div className="flex items-center overflow-hidden rounded-lg border border-input has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+            <Input
+              id={slugId}
+              name="slug"
+              value={effectiveSlug}
+              onChange={(e) => {
+                setSlugTouched(true);
+                setSlug(e.target.value.toLowerCase());
+              }}
+              required
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={availability.state === "unavailable" || undefined}
+              placeholder="acme"
+              className="rounded-none border-0 shadow-none focus-visible:ring-0"
+            />
+            <span className="whitespace-nowrap bg-muted px-3 py-1 text-sm text-muted-foreground">
+              .pixolateds.com
             </span>
-          )}
-          {availability.state === "unavailable" && (
-            <span className="text-red-600">{availability.reason}</span>
-          )}
-        </p>
-      </div>
+          </div>
+          <FieldDescription>
+            {availability.state === "checking" && "Checking availability…"}
+            {availability.state === "available" &&
+              `${effectiveSlug}.pixolateds.com is available`}
+            {availability.state === "unavailable" && availability.reason}
+            {availability.state === "idle" &&
+              "This becomes {subdomain}.pixolateds.com"}
+          </FieldDescription>
+        </Field>
 
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+        {state?.error && <FieldError>{state.error}</FieldError>}
 
-      <button
-        type="submit"
-        disabled={pending || availability.state !== "available"}
-        className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40"
-      >
-        {pending ? "Claiming…" : "Claim subdomain"}
-      </button>
+        <Button
+          type="submit"
+          disabled={pending || availability.state !== "available"}
+          className="w-full"
+        >
+          {pending && <Spinner data-icon="inline-start" />}
+          {pending ? "Claiming…" : "Claim subdomain"}
+        </Button>
+      </FieldGroup>
     </form>
   );
 }

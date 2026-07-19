@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { requireOwnedEvent } from "@/lib/auth";
 import { getDbAsync } from "@/db";
 import { photos } from "@/db/schema";
 import { getMediaBase, mediaUrl } from "@/lib/media";
+import { Separator } from "@/components/ui/separator";
 import { EventHeader } from "./event-header";
 import { EventSettingsForm } from "./event-settings-form";
 import { PhotoManager, type AdminPhoto } from "./photo-manager";
@@ -28,6 +29,12 @@ export default async function EventPage({
     .orderBy(asc(photos.sortIndex), asc(photos.capturedAt), asc(photos.createdAt))
     .all();
 
+  const storageRow = await db
+    .select({ bytes: sql<number>`sum(${photos.sizeBytes})` })
+    .from(photos)
+    .where(eq(photos.eventId, event.id))
+    .get();
+
   const mediaBase = await getMediaBase();
   const adminPhotos: AdminPhoto[] = rows.map((p) => ({
     id: p.id,
@@ -40,18 +47,23 @@ export default async function EventPage({
   }));
 
   return (
-    <div className="space-y-8">
-      <EventHeader
-        event={{
-          id: event.id,
-          name: event.name,
-          published: event.published,
-          publicUrl: `https://${company.slug}.pixolateds.com/${event.urlSlug}`,
-          previewPath: `/s/${company.slug}/${event.urlSlug}`,
-          viewCount: event.viewCount,
-          downloadCount: event.downloadCount,
-        }}
-      />
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
+        <EventHeader
+          event={{
+            id: event.id,
+            name: event.name,
+            published: event.published,
+            publicUrl: `https://${company.slug}.pixolateds.com/${event.urlSlug}`,
+            eventDate: event.eventDate,
+            photoCount: rows.length,
+            storageBytes: Number(storageRow?.bytes ?? 0),
+            viewCount: event.viewCount,
+            downloadCount: event.downloadCount,
+          }}
+        />
+        <Separator />
+      </div>
 
       <EventSettingsForm
         event={{
@@ -64,6 +76,7 @@ export default async function EventPage({
           published: event.published,
           hasPin: !!event.pinHash,
           sortMode: event.sortMode as "capture" | "manual",
+          theme: event.theme,
         }}
       />
 
