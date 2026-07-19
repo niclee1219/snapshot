@@ -237,7 +237,7 @@ export function Gallery({
                         ? "border-transparent text-black opacity-100"
                         : selectMode
                           ? "border-white/60 bg-black/30 text-transparent opacity-100"
-                          : "opacity-0"
+                          : "border-transparent opacity-0"
                     }`}
                     style={isSelected ? { background: "var(--accent)" } : undefined}
                   >
