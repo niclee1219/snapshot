@@ -143,10 +143,72 @@ body {
 	animation: bar-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes intro-zoom {
+	from {
+		transform: scale(1.06);
+	}
+	to {
+		transform: scale(1);
+	}
+}
+
+.gallery-intro-cover {
+	animation: intro-zoom 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes intro-rise {
+	from {
+		opacity: 0;
+		transform: translateY(16px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.gallery-intro-eyebrow {
+	opacity: 0;
+	animation: intro-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation-delay: 0.15s;
+}
+
+.gallery-intro-title {
+	opacity: 0;
+	animation: intro-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation-delay: 0.3s;
+}
+
+@keyframes intro-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+.gallery-intro-fade-out {
+	animation: intro-fade-out 0.3s ease-in forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.tile-in,
 	.fade-in,
 	.bar-up {
+		animation: none;
+		opacity: 1;
+		transform: none;
+	}
+
+	.gallery-intro {
+		display: none;
+	}
+
+	.gallery-intro-cover,
+	.gallery-intro-eyebrow,
+	.gallery-intro-title,
+	.gallery-intro-fade-out {
 		animation: none;
 		opacity: 1;
 		transform: none;

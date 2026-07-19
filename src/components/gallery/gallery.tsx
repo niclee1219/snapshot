@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Lightbox } from "./lightbox";
 import { JustifiedGrid } from "./justified-grid";
+import { Intro } from "./intro";
 import {
   canShareFiles,
   downloadSingle,
@@ -49,6 +50,18 @@ export function Gallery({
   const [busy, setBusy] = useState<string | null>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareSupported = useMemo(() => canShareFiles(), []);
+
+  // Cinematic intro plays whenever the event has a cover photo — sessionless (no
+  // storage), so it plays every visit by design. `revealed` starts false in that
+  // case (both on the server and on the client's first hydration render — the
+  // check only depends on the `coverUrl` prop, so there's no SSR/client mismatch)
+  // and content underneath stays free of entrance-animation classes until it flips.
+  // The reduced-motion check itself lives inside <Intro>, not here: it needs a
+  // browser-only matchMedia read, so it's deferred to an effect there and reported
+  // back via onDone — see intro.tsx for why that's the safe way to avoid a
+  // hydration-mismatch while still showing no visible flash.
+  const hasIntro = Boolean(coverUrl);
+  const [revealed, setRevealed] = useState(!hasIntro);
 
   const toggle = useCallback((id: string) => {
     setSelected((prev) => {
@@ -118,6 +131,16 @@ export function Gallery({
 
   return (
     <div style={accent ? { ["--accent" as string]: accent } : undefined}>
+      {/* ── Cinematic intro ── */}
+      {hasIntro && !revealed && coverUrl && (
+        <Intro
+          coverUrl={coverUrl}
+          eventName={eventName}
+          eventDate={eventDate}
+          onDone={() => setRevealed(true)}
+        />
+      )}
+
       {/* ── Hero ── */}
       <header className="relative">
         {coverUrl && (
@@ -136,7 +159,7 @@ export function Gallery({
             coverUrl ? "pb-16 pt-36 sm:pt-52" : "pb-10 pt-16"
           }`}
         >
-          <div className="tile-in">
+          <div className={revealed ? "tile-in" : undefined}>
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt={companyName} className="mb-5 h-8 w-auto" />
@@ -144,7 +167,9 @@ export function Gallery({
               <p className="gallery-eyebrow mb-3">{companyName}</p>
             )}
             {eventDate && (
-              <time className="gallery-eyebrow block">{formatDate(eventDate)}</time>
+              <time className="gallery-eyebrow block">
+                {formatEventDate(eventDate)}
+              </time>
             )}
             <h1 className="gallery-display mt-2 text-4xl leading-tight sm:text-6xl">
               {eventName}
@@ -207,6 +232,7 @@ export function Gallery({
           onTilePressStart={onTilePressStart}
           onTilePressEnd={onTilePressEnd}
           longPressActiveRef={longPress}
+          revealed={revealed}
         />
       )}
 
@@ -268,7 +294,7 @@ export function Gallery({
   );
 }
 
-function formatDate(iso: string): string {
+export function formatEventDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-US", {
