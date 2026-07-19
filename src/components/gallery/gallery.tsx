@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Lightbox } from "./lightbox";
+import { JustifiedGrid } from "./justified-grid";
 import {
   canShareFiles,
   downloadSingle,
@@ -198,56 +199,15 @@ export function Gallery({
           Photos are on their way — check back soon.
         </p>
       ) : (
-        <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-0.5 px-0 pb-32 pt-0.5 sm:grid-cols-3 sm:gap-1 sm:px-5 md:grid-cols-4">
-          {photos.map((photo, i) => {
-            const isSelected = selected.has(photo.id);
-            return (
-              <li
-                key={photo.id}
-                className="tile-in relative aspect-square"
-                style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}
-              >
-                <button
-                  className="group block h-full w-full"
-                  onClick={() => onTileClick(i, photo.id)}
-                  onTouchStart={() => onTilePressStart(photo.id)}
-                  onTouchEnd={onTilePressEnd}
-                  onTouchMove={onTilePressEnd}
-                  onContextMenu={(e) => {
-                    if (longPress.current) e.preventDefault();
-                  }}
-                  aria-label={
-                    selectMode
-                      ? `Select photo ${i + 1}`
-                      : `Open photo ${i + 1}`
-                  }
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.thumbUrl}
-                    alt=""
-                    loading={i < 8 ? "eager" : "lazy"}
-                    className={`h-full w-full object-cover transition-[transform,opacity] duration-300 ${
-                      isSelected ? "scale-[0.93] opacity-80" : ""
-                    }`}
-                  />
-                  <span
-                    className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs transition-opacity ${
-                      isSelected
-                        ? "border-transparent text-[var(--accent-ink)] opacity-100"
-                        : selectMode
-                          ? "border-white/60 bg-black/30 text-transparent opacity-100"
-                          : "border-transparent opacity-0"
-                    }`}
-                    style={isSelected ? { background: "var(--accent)" } : undefined}
-                  >
-                    ✓
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <JustifiedGrid
+          photos={photos}
+          selectMode={selectMode}
+          selected={selected}
+          onTileClick={onTileClick}
+          onTilePressStart={onTilePressStart}
+          onTilePressEnd={onTilePressEnd}
+          longPressActiveRef={longPress}
+        />
       )}
 
       {/* ── Selection action bar ── */}
