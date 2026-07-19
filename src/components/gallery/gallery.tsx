@@ -27,7 +27,7 @@ type Props = {
   companyName: string;
   logoUrl: string | null;
   coverUrl: string | null;
-  accent: string;
+  accent?: string;
   photos: GalleryPhoto[];
 };
 
@@ -116,7 +116,7 @@ export function Gallery({
   }
 
   return (
-    <div style={{ ["--accent" as string]: accent }}>
+    <div style={accent ? { ["--accent" as string]: accent } : undefined}>
       {/* ── Hero ── */}
       <header className="relative">
         {coverUrl && (
@@ -173,7 +173,7 @@ export function Gallery({
                       : new Set(photos.map((p) => p.id)),
                   )
                 }
-                className="text-xs text-[var(--mist)] hover:text-white"
+                className="text-xs text-[var(--mist)] hover:text-[var(--ink-strong)]"
               >
                 {selected.size === photos.length ? "Clear all" : "Select all"}
               </button>
@@ -183,7 +183,7 @@ export function Gallery({
               className={`rounded-full border px-4 py-1.5 text-xs transition-colors ${
                 selectMode
                   ? "border-[var(--accent)] text-[var(--accent)]"
-                  : "border-[var(--hairline)] text-[var(--mist)] hover:text-white"
+                  : "border-[var(--hairline)] text-[var(--mist)] hover:text-[var(--ink-strong)]"
               }`}
             >
               {selectMode ? "Done" : "Select"}
@@ -234,7 +234,7 @@ export function Gallery({
                   <span
                     className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs transition-opacity ${
                       isSelected
-                        ? "border-transparent text-black opacity-100"
+                        ? "border-transparent text-[var(--accent-ink)] opacity-100"
                         : selectMode
                           ? "border-white/60 bg-black/30 text-transparent opacity-100"
                           : "border-transparent opacity-0"
@@ -252,7 +252,7 @@ export function Gallery({
 
       {/* ── Selection action bar ── */}
       {selected.size > 0 && (
-        <div className="bar-up fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--hairline)] bg-black/85 px-2 py-2 shadow-2xl backdrop-blur">
+        <div className="bar-up fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-2 py-2 shadow-2xl backdrop-blur">
           <span className="px-3 text-xs text-[var(--mist)]">
             {selected.size} selected
           </span>
@@ -260,7 +260,7 @@ export function Gallery({
             <button
               disabled={busy !== null}
               onClick={handleShare}
-              className="rounded-full px-4 py-2 text-xs font-medium text-black disabled:opacity-50"
+              className="rounded-full px-4 py-2 text-xs font-medium text-[var(--accent-ink)] disabled:opacity-50"
               style={{ background: "var(--accent)" }}
             >
               {busy === "share" ? "Preparing…" : "Share"}
@@ -271,8 +271,8 @@ export function Gallery({
             onClick={handleDownload}
             className={`rounded-full px-4 py-2 text-xs font-medium disabled:opacity-50 ${
               shareSupported
-                ? "border border-[var(--hairline)] text-white"
-                : "text-black"
+                ? "border border-[var(--hairline)] text-[var(--ink-strong)]"
+                : "text-[var(--accent-ink)]"
             }`}
             style={shareSupported ? undefined : { background: "var(--accent)" }}
           >
@@ -281,7 +281,7 @@ export function Gallery({
           <button
             onClick={exitSelect}
             aria-label="Clear selection"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--mist)] hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--mist)] hover:text-[var(--ink-strong)]"
           >
             ✕
           </button>

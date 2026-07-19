@@ -14,6 +14,7 @@ import { getDbAsync } from "@/db";
 import { events, photos } from "@/db/schema";
 import { Gallery, type GalleryPhoto } from "@/components/gallery/gallery";
 import { PinGate } from "@/components/gallery/pin-gate";
+import { cn } from "@/lib/utils";
 
 type Params = Promise<{ slug: string; eventSlug: string }>;
 
@@ -40,8 +41,12 @@ export default async function EventGalleryPage({
   const event = await getPublishedEvent(company.id, eventSlug);
   if (!event) notFound();
 
-  const accent =
-    event.accentColor ?? company.accentColor ?? "#e8e4dd";
+  const accent = event.accentColor ?? company.accentColor ?? undefined;
+  const theme = event.theme ?? company.theme;
+  const surfaceClass = cn(
+    "gallery-root gallery-surface",
+    theme === "light" && "gallery-light",
+  );
 
   if (event.pinHash) {
     const jar = await cookies();
@@ -51,12 +56,14 @@ export default async function EventGalleryPage({
     );
     if (!ok) {
       return (
-        <PinGate
-          slug={slug}
-          eventSlug={eventSlug}
-          eventName={event.name}
-          accent={accent}
-        />
+        <div className={surfaceClass}>
+          <PinGate
+            slug={slug}
+            eventSlug={eventSlug}
+            eventName={event.name}
+            accent={accent}
+          />
+        </div>
       );
     }
   }
@@ -106,16 +113,18 @@ export default async function EventGalleryPage({
       : cover;
 
   return (
-    <Gallery
-      eventId={event.id}
-      eventName={event.name}
-      eventDate={event.eventDate}
-      welcomeMessage={event.welcomeMessage}
-      companyName={company.name}
-      logoUrl={company.logoKey ? mediaUrl(mediaBase, company.logoKey) : null}
-      coverUrl={coverRow ? mediaUrl(mediaBase, coverRow.keyDisplay) : null}
-      accent={accent}
-      photos={galleryPhotos}
-    />
+    <div className={surfaceClass}>
+      <Gallery
+        eventId={event.id}
+        eventName={event.name}
+        eventDate={event.eventDate}
+        welcomeMessage={event.welcomeMessage}
+        companyName={company.name}
+        logoUrl={company.logoKey ? mediaUrl(mediaBase, company.logoKey) : null}
+        coverUrl={coverRow ? mediaUrl(mediaBase, coverRow.keyDisplay) : null}
+        accent={accent}
+        photos={galleryPhotos}
+      />
+    </div>
   );
 }

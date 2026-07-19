@@ -17,7 +17,7 @@ export default function TenantLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`gallery-root ${serif.variable} ${sans.variable}`}>
+    <div className={`${serif.variable} ${sans.variable}`}>
       {children}
     </div>
   );

@@ -6,6 +6,7 @@ import { getMediaBase, mediaUrl } from "@/lib/media";
 import { getDbAsync } from "@/db";
 import { photos } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { cn } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -41,12 +42,18 @@ export default async function TenantHome({
     if (cover) covers.set(ev.id, mediaUrl(mediaBase, cover.keyDisplay));
   }
 
-  const accent = company.accentColor ?? "#e8e4dd";
+  const accent = company.accentColor ?? undefined;
 
   return (
     <div
+      className={cn(
+        "gallery-root gallery-surface",
+        company.theme === "light" && "gallery-light",
+      )}
+    >
+    <div
       className="mx-auto max-w-3xl px-5 pb-24 pt-16"
-      style={{ ["--accent" as string]: accent }}
+      style={accent ? { ["--accent" as string]: accent } : undefined}
     >
       <header className="tile-in">
         {company.logoKey && (
@@ -109,6 +116,7 @@ export default async function TenantHome({
       <footer className="mt-20 text-center text-xs text-[var(--mist)]">
         Powered by pixolateds
       </footer>
+    </div>
     </div>
   );
 }
