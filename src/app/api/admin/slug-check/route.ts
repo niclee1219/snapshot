@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDbAsync } from "@/db";
 import { companies } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
 import { validateCompanySlug } from "@/lib/slugs";
 
 export async function GET(req: NextRequest) {
+  await requireUserId();
   const slug = (req.nextUrl.searchParams.get("slug") ?? "").toLowerCase();
   const error = validateCompanySlug(slug);
   if (error) {

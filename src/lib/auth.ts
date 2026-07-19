@@ -18,6 +18,11 @@ export class NotInvitedError extends Error {
 export async function requireUserId(): Promise<string> {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
+  // Enforces the admin allowlist for every authenticated call site. Safe to
+  // call after the userId check: assertAllowedAdmin() only throws for a
+  // signed-in-but-not-listed user, and treats unauthenticated as allowed
+  // (which we've already ruled out above).
+  await assertAllowedAdmin();
   return userId;
 }
 
