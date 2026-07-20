@@ -18,7 +18,7 @@ type Props = {
   onTilePressStart: (id: string) => void;
   onTilePressEnd: () => void;
   longPressActiveRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
-  /** Reserved for Task 8's reveal gate. Defaults to true (current unconditional .tile-in behavior). */
+  /** Whether tiles receive the .tile-in entrance animation. Defaults to true; the gallery flips it once the intro reveal has run so tiles don't re-animate on later renders. */
   revealed?: boolean;
 };
 

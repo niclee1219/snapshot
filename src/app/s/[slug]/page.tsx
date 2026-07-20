@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { getCompanyBySlug, getPublishedEvents } from "@/lib/tenant";
 import { getMediaBase, mediaUrl } from "@/lib/media";
 import { getDbAsync } from "@/db";
@@ -32,12 +32,19 @@ export default async function TenantHome({
   const mediaBase = await getMediaBase();
   const db = await getDbAsync();
 
-  // Single IN-query for all covers across every listed event — avoids the
-  // old N+1 (one SELECT per event). Visible photos only, ordered so the
-  // first row encountered per event is a reasonable "earliest" pick; each
-  // event then prefers its explicit coverPhotoId (if visible) over that.
-  const eventIds = eventsList.map((ev) => ev.id);
-  const photoRows = eventIds.length
+  // Bounded cover lookup — avoids pulling every visible photo of every
+  // listed event just to pick one cover each. Two small queries instead:
+  //  1) the explicit covers (one row per coverPhotoId, visible only)
+  //  2) a fallback "earliest visible photo" per event, but only for events
+  //     that lack a usable explicit cover, computed in SQL via row_number()
+  //     so we never transfer more than one row per fallback event.
+  type CoverRow = { id: string; eventId: string; keyDisplay: string };
+
+  const coverPhotoIds = eventsList
+    .map((ev) => ev.coverPhotoId)
+    .filter((id): id is string => Boolean(id));
+
+  const explicitCoverRows: CoverRow[] = coverPhotoIds.length
     ? await db
         .select({
           id: photos.id,
@@ -46,32 +53,52 @@ export default async function TenantHome({
         })
         .from(photos)
         .where(
-          and(inArray(photos.eventId, eventIds), eq(photos.hidden, false)),
-        )
-        .orderBy(
-          asc(photos.capturedAt),
-          asc(photos.sortIndex),
-          asc(photos.createdAt),
+          and(inArray(photos.id, coverPhotoIds), eq(photos.hidden, false)),
         )
         .all()
     : [];
 
-  const photosByEvent = new Map<string, typeof photoRows>();
-  for (const p of photoRows) {
-    const list = photosByEvent.get(p.eventId);
-    if (list) list.push(p);
-    else photosByEvent.set(p.eventId, [p]);
-  }
+  const explicitByEvent = new Map(
+    explicitCoverRows.map((p) => [p.eventId, p]),
+  );
+
+  const fallbackEventIds = eventsList
+    .filter((ev) => !ev.coverPhotoId || !explicitByEvent.has(ev.id))
+    .map((ev) => ev.id);
+
+  const fallbackRows: CoverRow[] = fallbackEventIds.length
+    ? await db.all<CoverRow>(sql`
+        select id, event_id as eventId, key_display as keyDisplay
+        from (
+          select
+            id,
+            event_id,
+            key_display,
+            row_number() over (
+              partition by event_id
+              order by
+                (captured_at is null) asc,
+                captured_at asc,
+                sort_index asc,
+                created_at asc
+            ) as rn
+          from photos
+          where hidden = 0
+            and event_id in (${sql.join(
+              fallbackEventIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})
+        )
+        where rn = 1
+      `)
+    : [];
+
+  const fallbackByEvent = new Map(fallbackRows.map((p) => [p.eventId, p]));
 
   const covers = new Map<string, string>();
   for (const ev of eventsList) {
-    const evPhotos = photosByEvent.get(ev.id);
-    if (!evPhotos || evPhotos.length === 0) continue;
-    const explicit = ev.coverPhotoId
-      ? evPhotos.find((p) => p.id === ev.coverPhotoId)
-      : undefined;
-    const chosen = explicit ?? evPhotos[0];
-    covers.set(ev.id, mediaUrl(mediaBase, chosen.keyDisplay));
+    const chosen = explicitByEvent.get(ev.id) ?? fallbackByEvent.get(ev.id);
+    if (chosen) covers.set(ev.id, mediaUrl(mediaBase, chosen.keyDisplay));
   }
 
   const accent = company.accentColor ?? undefined;

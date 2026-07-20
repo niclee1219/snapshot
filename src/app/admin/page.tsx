@@ -48,16 +48,10 @@ export default async function AdminDashboard() {
     .orderBy(desc(events.createdAt))
     .all();
 
-  const counts = await db
-    .select({ eventId: photos.eventId, n: count() })
-    .from(photos)
-    .groupBy(photos.eventId)
-    .all();
-  const photoCount = new Map(counts.map((c) => [c.eventId, c.n]));
-
   const storageRows = await db
     .select({
       eventId: photos.eventId,
+      n: count(),
       bytes: sql<number>`sum(${photos.sizeBytes})`,
     })
     .from(photos)
@@ -65,6 +59,7 @@ export default async function AdminDashboard() {
     .where(eq(events.companyId, company.id))
     .groupBy(photos.eventId)
     .all();
+  const photoCount = new Map(storageRows.map((r) => [r.eventId, r.n]));
   const storageByEvent = new Map(
     storageRows.map((r) => [r.eventId, Number(r.bytes ?? 0)]),
   );
