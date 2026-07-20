@@ -2,23 +2,59 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDbAsync } from "@/db";
 import { companies, events, photos } from "@/db/schema";
-import { requireUserId, requireCompany, requireOwnedEvent } from "@/lib/auth";
+import {
+  ACTIVE_SPACE_COOKIE,
+  assertAllowedAdmin,
+  requireUserId,
+  requireActiveCompany,
+  requireOwnedEvent,
+} from "@/lib/auth";
 import { slugify, validateCompanySlug } from "@/lib/slugs";
 import { hashPin } from "@/lib/pin";
 
-// ── Onboarding ────────────────────────────────────────────────────────────────
+// ── Spaces ────────────────────────────────────────────────────────────────────
 
 export type ActionState = { error?: string } | null;
 
-export async function claimSlug(
+async function setActiveSpaceCookie(companyId: string) {
+  const store = await cookies();
+  store.set(ACTIVE_SPACE_COOKIE, companyId, {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax",
+    secure: true,
+    maxAge: 60 * 60 * 24 * 365,
+  });
+}
+
+/** Switches the active space cookie to a company the user owns. */
+export async function setActiveSpace(companyId: string): Promise<void> {
+  const userId = await requireUserId();
+  const db = await getDbAsync();
+  const company = await db
+    .select({ id: companies.id, clerkUserId: companies.clerkUserId })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .get();
+  if (!company || company.clerkUserId !== userId) {
+    throw new Error("Space not found");
+  }
+  await setActiveSpaceCookie(companyId);
+  redirect("/admin");
+}
+
+/** Creates a new space for the signed-in user and makes it active. */
+export async function createSpace(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await assertAllowedAdmin();
   const userId = await requireUserId();
   const name = String(formData.get("name") ?? "").trim();
   const slug = String(formData.get("slug") ?? "")
@@ -30,13 +66,6 @@ export async function claimSlug(
   if (slugError) return { error: slugError };
 
   const db = await getDbAsync();
-  const existing = await db
-    .select({ id: companies.id })
-    .from(companies)
-    .where(eq(companies.clerkUserId, userId))
-    .get();
-  if (existing) redirect("/admin");
-
   const taken = await db
     .select({ id: companies.id })
     .from(companies)
@@ -44,12 +73,66 @@ export async function claimSlug(
     .get();
   if (taken) return { error: "That subdomain is already taken." };
 
+  const id = nanoid();
   await db.insert(companies).values({
-    id: nanoid(),
+    id,
     clerkUserId: userId,
     name,
     slug,
   });
+  await setActiveSpaceCookie(id);
+  redirect("/admin");
+}
+
+/** Thin alias kept so the existing onboarding form keeps working unchanged. */
+export async function claimSlug(
+  prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return createSpace(prev, formData);
+}
+
+/** Deletes a space: R2 objects under its prefix, then the DB row (FK cascade). */
+export async function deleteSpace(
+  companyId: string,
+  confirmText: string,
+): Promise<ActionState> {
+  const userId = await requireUserId();
+  const db = await getDbAsync();
+  const company = await db
+    .select()
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .get();
+  if (!company || company.clerkUserId !== userId) {
+    throw new Error("Space not found");
+  }
+  if (confirmText !== company.slug) {
+    return { error: "Confirmation text does not match the space's subdomain." };
+  }
+
+  const { env } = await getCloudflareContext({ async: true });
+  // Very large spaces (>~250k objects) would need a queue/waitUntil pattern
+  // instead of blocking the action on this loop.
+  let cursor: string | undefined;
+  do {
+    const page = await env.MEDIA.list({
+      prefix: `${company.id}/`,
+      cursor,
+      limit: 1000,
+    });
+    if (page.objects.length) {
+      await env.MEDIA.delete(page.objects.map((o) => o.key));
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  await db.delete(companies).where(eq(companies.id, companyId));
+
+  const store = await cookies();
+  if (store.get(ACTIVE_SPACE_COOKIE)?.value === companyId) {
+    store.delete(ACTIVE_SPACE_COOKIE);
+  }
   redirect("/admin");
 }
 
@@ -59,12 +142,22 @@ export async function updateCompany(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const company = await requireCompany();
+  const company = await requireActiveCompany();
   const name = String(formData.get("name") ?? "").trim();
   const accentColor = String(formData.get("accentColor") ?? "").trim() || null;
   const logoKey = formData.get("logoKey");
 
   if (!name) return { error: "Company name is required." };
+
+  const themeField = formData.get("theme");
+  let themeUpdate: { theme?: "dark" | "light" } = {};
+  if (themeField !== null) {
+    const themeStr = String(themeField);
+    if (themeStr !== "dark" && themeStr !== "light") {
+      return { error: "Invalid theme." };
+    }
+    themeUpdate = { theme: themeStr };
+  }
 
   const db = await getDbAsync();
   await db
@@ -72,6 +165,7 @@ export async function updateCompany(
     .set({
       name,
       accentColor,
+      ...themeUpdate,
       ...(typeof logoKey === "string" && logoKey !== ""
         ? { logoKey }
         : {}),
@@ -108,7 +202,7 @@ export async function createEvent(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const company = await requireCompany();
+  const company = await requireActiveCompany();
   const name = String(formData.get("name") ?? "").trim();
   const eventDate = String(formData.get("eventDate") ?? "").trim() || null;
 
@@ -152,10 +246,23 @@ export async function updateEvent(
     urlSlug = await uniqueEventSlug(company.id, requestedSlug, event.id);
   }
 
+  const themeField = formData.get("theme");
+  let themeUpdate: { theme?: "dark" | "light" | null } = {};
+  if (themeField !== null) {
+    const themeStr = String(themeField);
+    if (themeStr === "" || themeStr === "default") {
+      themeUpdate = { theme: null };
+    } else if (themeStr === "dark" || themeStr === "light") {
+      themeUpdate = { theme: themeStr };
+    } else {
+      return { error: "Invalid theme." };
+    }
+  }
+
   const db = await getDbAsync();
   await db
     .update(events)
-    .set({ name, eventDate, welcomeMessage, accentColor, urlSlug })
+    .set({ name, eventDate, welcomeMessage, accentColor, urlSlug, ...themeUpdate })
     .where(eq(events.id, event.id));
   revalidatePath(`/admin/events/${event.id}`);
   return null;

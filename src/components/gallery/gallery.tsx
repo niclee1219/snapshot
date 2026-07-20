@@ -2,6 +2,9 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Lightbox } from "./lightbox";
+import { JustifiedGrid } from "./justified-grid";
+import { Intro } from "./intro";
+import { formatEventDate } from "./format-date";
 import {
   canShareFiles,
   downloadSingle,
@@ -27,7 +30,7 @@ type Props = {
   companyName: string;
   logoUrl: string | null;
   coverUrl: string | null;
-  accent: string;
+  accent?: string;
   photos: GalleryPhoto[];
 };
 
@@ -48,6 +51,26 @@ export function Gallery({
   const [busy, setBusy] = useState<string | null>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareSupported = useMemo(() => canShareFiles(), []);
+
+  // Cinematic intro plays whenever the event has a cover photo — sessionless (no
+  // storage), so it plays every visit by design. `revealed` starts false in that
+  // case (both on the server and on the client's first hydration render — the
+  // check only depends on the `coverUrl` prop, so there's no SSR/client mismatch)
+  // and content underneath stays free of entrance-animation classes until it flips.
+  // The reduced-motion check itself lives inside <Intro>, not here: it needs a
+  // browser-only matchMedia read, so it's deferred to an effect there and reported
+  // back via onReveal/onDone — see intro.tsx for why that's the safe way to avoid
+  // a hydration-mismatch while still showing no visible flash.
+  //
+  // `revealed` and `introMounted` are deliberately separate: `revealed` flips the
+  // instant the intro's fade-out *starts* (its onReveal), so the gallery's
+  // `.tile-in` stagger plays concurrently, underneath the still-dissolving
+  // overlay — no un-animated flash-through, no snap-back. `introMounted` only
+  // flips once the fade has visually finished (onDone), which is when <Intro>
+  // actually unmounts.
+  const hasIntro = Boolean(coverUrl);
+  const [revealed, setRevealed] = useState(!hasIntro);
+  const [introMounted, setIntroMounted] = useState(hasIntro);
 
   const toggle = useCallback((id: string) => {
     setSelected((prev) => {
@@ -116,7 +139,18 @@ export function Gallery({
   }
 
   return (
-    <div style={{ ["--accent" as string]: accent }}>
+    <div style={accent ? { ["--accent" as string]: accent } : undefined}>
+      {/* ── Cinematic intro ── */}
+      {hasIntro && introMounted && coverUrl && (
+        <Intro
+          coverUrl={coverUrl}
+          eventName={eventName}
+          eventDate={eventDate}
+          onReveal={() => setRevealed(true)}
+          onDone={() => setIntroMounted(false)}
+        />
+      )}
+
       {/* ── Hero ── */}
       <header className="relative">
         {coverUrl && (
@@ -135,7 +169,7 @@ export function Gallery({
             coverUrl ? "pb-16 pt-36 sm:pt-52" : "pb-10 pt-16"
           }`}
         >
-          <div className="tile-in">
+          <div className={revealed ? "tile-in" : undefined}>
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt={companyName} className="mb-5 h-8 w-auto" />
@@ -143,7 +177,9 @@ export function Gallery({
               <p className="gallery-eyebrow mb-3">{companyName}</p>
             )}
             {eventDate && (
-              <time className="gallery-eyebrow block">{formatDate(eventDate)}</time>
+              <time className="gallery-eyebrow block">
+                {formatEventDate(eventDate)}
+              </time>
             )}
             <h1 className="gallery-display mt-2 text-4xl leading-tight sm:text-6xl">
               {eventName}
@@ -173,7 +209,7 @@ export function Gallery({
                       : new Set(photos.map((p) => p.id)),
                   )
                 }
-                className="text-xs text-[var(--mist)] hover:text-white"
+                className="text-xs text-[var(--mist)] hover:text-[var(--ink-strong)]"
               >
                 {selected.size === photos.length ? "Clear all" : "Select all"}
               </button>
@@ -183,7 +219,7 @@ export function Gallery({
               className={`rounded-full border px-4 py-1.5 text-xs transition-colors ${
                 selectMode
                   ? "border-[var(--accent)] text-[var(--accent)]"
-                  : "border-[var(--hairline)] text-[var(--mist)] hover:text-white"
+                  : "border-[var(--hairline)] text-[var(--mist)] hover:text-[var(--ink-strong)]"
               }`}
             >
               {selectMode ? "Done" : "Select"}
@@ -198,61 +234,21 @@ export function Gallery({
           Photos are on their way — check back soon.
         </p>
       ) : (
-        <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-0.5 px-0 pb-32 pt-0.5 sm:grid-cols-3 sm:gap-1 sm:px-5 md:grid-cols-4">
-          {photos.map((photo, i) => {
-            const isSelected = selected.has(photo.id);
-            return (
-              <li
-                key={photo.id}
-                className="tile-in relative aspect-square"
-                style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}
-              >
-                <button
-                  className="group block h-full w-full"
-                  onClick={() => onTileClick(i, photo.id)}
-                  onTouchStart={() => onTilePressStart(photo.id)}
-                  onTouchEnd={onTilePressEnd}
-                  onTouchMove={onTilePressEnd}
-                  onContextMenu={(e) => {
-                    if (longPress.current) e.preventDefault();
-                  }}
-                  aria-label={
-                    selectMode
-                      ? `Select photo ${i + 1}`
-                      : `Open photo ${i + 1}`
-                  }
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.thumbUrl}
-                    alt=""
-                    loading={i < 8 ? "eager" : "lazy"}
-                    className={`h-full w-full object-cover transition-[transform,opacity] duration-300 ${
-                      isSelected ? "scale-[0.93] opacity-80" : ""
-                    }`}
-                  />
-                  <span
-                    className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs transition-opacity ${
-                      isSelected
-                        ? "border-transparent text-black opacity-100"
-                        : selectMode
-                          ? "border-white/60 bg-black/30 text-transparent opacity-100"
-                          : "opacity-0"
-                    }`}
-                    style={isSelected ? { background: "var(--accent)" } : undefined}
-                  >
-                    ✓
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <JustifiedGrid
+          photos={photos}
+          selectMode={selectMode}
+          selected={selected}
+          onTileClick={onTileClick}
+          onTilePressStart={onTilePressStart}
+          onTilePressEnd={onTilePressEnd}
+          longPressActiveRef={longPress}
+          revealed={revealed}
+        />
       )}
 
       {/* ── Selection action bar ── */}
       {selected.size > 0 && (
-        <div className="bar-up fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--hairline)] bg-black/85 px-2 py-2 shadow-2xl backdrop-blur">
+        <div className="bar-up fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-2 py-2 shadow-2xl backdrop-blur">
           <span className="px-3 text-xs text-[var(--mist)]">
             {selected.size} selected
           </span>
@@ -260,7 +256,7 @@ export function Gallery({
             <button
               disabled={busy !== null}
               onClick={handleShare}
-              className="rounded-full px-4 py-2 text-xs font-medium text-black disabled:opacity-50"
+              className="rounded-full px-4 py-2 text-xs font-medium text-[var(--accent-ink)] disabled:opacity-50"
               style={{ background: "var(--accent)" }}
             >
               {busy === "share" ? "Preparing…" : "Share"}
@@ -271,8 +267,8 @@ export function Gallery({
             onClick={handleDownload}
             className={`rounded-full px-4 py-2 text-xs font-medium disabled:opacity-50 ${
               shareSupported
-                ? "border border-[var(--hairline)] text-white"
-                : "text-black"
+                ? "border border-[var(--hairline)] text-[var(--ink-strong)]"
+                : "text-[var(--accent-ink)]"
             }`}
             style={shareSupported ? undefined : { background: "var(--accent)" }}
           >
@@ -281,7 +277,7 @@ export function Gallery({
           <button
             onClick={exitSelect}
             aria-label="Clear selection"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--mist)] hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--mist)] hover:text-[var(--ink-strong)]"
           >
             ✕
           </button>
@@ -302,18 +298,16 @@ export function Gallery({
       )}
 
       <footer className="pb-10 text-center text-xs text-[var(--mist)]">
-        Powered by pixolateds
+        Powered by{" "}
+        <a
+          href="https://pixolateds.com"
+          target="_blank"
+          rel="noopener"
+          className="text-[var(--mist)] transition-colors hover:text-[var(--ink-strong)] hover:underline"
+        >
+          pixolateds
+        </a>
       </footer>
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }

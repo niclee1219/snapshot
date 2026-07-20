@@ -1,12 +1,39 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useId, useState, useTransition } from "react";
 import {
   setEventPin,
   setSortMode,
   updateEvent,
   type ActionState,
 } from "../../actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 
 type EventSettings = {
   id: string;
@@ -18,9 +45,11 @@ type EventSettings = {
   published: boolean;
   hasPin: boolean;
   sortMode: "capture" | "manual";
+  theme: "dark" | "light" | null;
 };
 
 export function EventSettingsForm({ event }: { event: EventSettings }) {
+  const formId = useId();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     updateEvent,
     null,
@@ -30,173 +59,177 @@ export function EventSettingsForm({ event }: { event: EventSettings }) {
   const [pinError, setPinError] = useState<string | null>(null);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        Event settings
-      </h2>
-      <form
-        action={formAction}
-        className="mt-4 grid gap-4 sm:grid-cols-2"
-      >
-        <input type="hidden" name="eventId" value={event.id} />
-        <div>
-          <label className="block text-sm font-medium" htmlFor="ev-name">
-            Site title
-          </label>
-          <input
-            id="ev-name"
-            name="name"
-            defaultValue={event.name}
-            required
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="ev-date">
-            Event date
-          </label>
-          <input
-            id="ev-date"
-            name="eventDate"
-            type="date"
-            defaultValue={event.eventDate}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="ev-slug">
-            URL slug{" "}
-            {event.published && (
-              <span className="font-normal text-zinc-400">
-                (unpublish to change)
-              </span>
-            )}
-          </label>
-          <input
-            id="ev-slug"
-            name="urlSlug"
-            defaultValue={event.urlSlug}
-            disabled={event.published}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-400"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="ev-accent">
-            Accent color
-          </label>
-          <input
-            id="ev-accent"
-            name="accentColor"
-            type="color"
-            defaultValue={event.accentColor || "#18181b"}
-            className="mt-1 h-9 w-14 cursor-pointer rounded border border-zinc-300"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium" htmlFor="ev-welcome">
-            Welcome message
-          </label>
-          <textarea
-            id="ev-welcome"
-            name="welcomeMessage"
-            defaultValue={event.welcomeMessage}
-            rows={2}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
-            placeholder="Thanks for joining us! Tap any photo to view, select to download or share."
-          />
-        </div>
-        {state?.error && (
-          <p className="text-sm text-red-600 sm:col-span-2">{state.error}</p>
-        )}
-        <div className="sm:col-span-2">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40"
-          >
-            {pending ? "Saving…" : "Save settings"}
-          </button>
-        </div>
-      </form>
-
-      <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-4 sm:grid-cols-2">
-        <div>
-          <h3 className="text-sm font-medium">Gallery PIN</h3>
-          {event.hasPin ? (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">
-                PIN protection on
-              </span>
-              <button
-                disabled={pinPending}
-                onClick={() =>
-                  startPin(async () => {
-                    await setEventPin(event.id, null);
-                  })
-                }
-                className="text-xs text-zinc-600 underline-offset-2 hover:underline"
-              >
-                Remove PIN
-              </button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Event settings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form id={formId} action={formAction}>
+          <FieldGroup>
+            <input type="hidden" name="eventId" value={event.id} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="ev-name">Site title</FieldLabel>
+                <Input
+                  id="ev-name"
+                  name="name"
+                  defaultValue={event.name}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ev-date">Event date</FieldLabel>
+                <Input
+                  id="ev-date"
+                  name="eventDate"
+                  type="date"
+                  defaultValue={event.eventDate}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ev-slug">
+                  URL slug
+                  {event.published && (
+                    <span className="font-normal text-muted-foreground">
+                      (unpublish to change)
+                    </span>
+                  )}
+                </FieldLabel>
+                <Input
+                  id="ev-slug"
+                  name="urlSlug"
+                  defaultValue={event.urlSlug}
+                  disabled={event.published}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ev-accent">Accent color</FieldLabel>
+                <Input
+                  id="ev-accent"
+                  name="accentColor"
+                  type="color"
+                  defaultValue={event.accentColor || "#18181b"}
+                  className="h-8 w-16 cursor-pointer p-1"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ev-theme">Theme</FieldLabel>
+                <Select name="theme" defaultValue={event.theme ?? "default"}>
+                  <SelectTrigger id="ev-theme" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Space default</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="light">Light</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Overrides the space theme for this event&apos;s gallery.
+                </FieldDescription>
+              </Field>
             </div>
-          ) : (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="4-6 digits"
-                className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-sm focus:border-zinc-500 focus:outline-none"
+
+            <Field>
+              <FieldLabel htmlFor="ev-welcome">Welcome message</FieldLabel>
+              <Textarea
+                id="ev-welcome"
+                name="welcomeMessage"
+                defaultValue={event.welcomeMessage}
+                rows={2}
+                placeholder="Thanks for joining us! Tap any photo to view, select to download or share."
               />
-              <button
-                disabled={pinPending || pinInput.length < 4}
-                onClick={() =>
-                  startPin(async () => {
-                    const res = await setEventPin(event.id, pinInput);
-                    setPinError(res?.error ?? null);
-                    if (!res?.error) setPinInput("");
-                  })
-                }
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-40"
-              >
-                Set PIN
-              </button>
-            </div>
-          )}
-          {pinError && <p className="mt-1 text-xs text-red-600">{pinError}</p>}
-        </div>
+            </Field>
 
-        <div>
-          <h3 className="text-sm font-medium">Photo order</h3>
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            <button
-              disabled={pinPending || event.sortMode === "capture"}
-              onClick={() =>
-                startPin(async () => {
-                  await setSortMode(event.id, "capture");
-                })
-              }
-              className={`rounded-md px-3 py-1.5 text-xs ${
-                event.sortMode === "capture"
-                  ? "bg-zinc-900 text-white"
-                  : "border border-zinc-300 hover:bg-zinc-50"
-              }`}
-            >
-              Capture time
-            </button>
-            <span
-              className={`rounded-md px-3 py-1.5 text-xs ${
-                event.sortMode === "manual"
-                  ? "bg-zinc-900 text-white"
-                  : "border border-zinc-300 text-zinc-400"
-              }`}
-            >
-              Manual (drag photos)
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
+            {state?.error && <FieldError>{state.error}</FieldError>}
+
+            <FieldSeparator />
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel>Gallery PIN</FieldLabel>
+                {event.hasPin ? (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">PIN protection on</Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={pinPending}
+                      onClick={() =>
+                        startPin(async () => {
+                          await setEventPin(event.id, null);
+                        })
+                      }
+                    >
+                      Remove PIN
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value)}
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="4-6 digits"
+                      className="w-28"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={pinPending || pinInput.length < 4}
+                      onClick={() =>
+                        startPin(async () => {
+                          const res = await setEventPin(event.id, pinInput);
+                          setPinError(res?.error ?? null);
+                          if (!res?.error) setPinInput("");
+                        })
+                      }
+                    >
+                      Set PIN
+                    </Button>
+                  </div>
+                )}
+                {pinError && <FieldError>{pinError}</FieldError>}
+              </Field>
+
+              <Field>
+                <FieldLabel>Photo order</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      event.sortMode === "capture" ? "default" : "outline"
+                    }
+                    disabled={pinPending || event.sortMode === "capture"}
+                    onClick={() =>
+                      startPin(async () => {
+                        await setSortMode(event.id, "capture");
+                      })
+                    }
+                  >
+                    Capture time
+                  </Button>
+                  <Badge
+                    variant={event.sortMode === "manual" ? "default" : "outline"}
+                  >
+                    Manual (drag photos)
+                  </Badge>
+                </div>
+              </Field>
+            </div>
+          </FieldGroup>
+        </form>
+      </CardContent>
+      <CardFooter>
+        <Button type="submit" form={formId} disabled={pending}>
+          {pending && <Spinner data-icon="inline-start" />}
+          {pending ? "Saving…" : "Save settings"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

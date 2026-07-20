@@ -7,18 +7,23 @@ import {
   index,
 } from "drizzle-orm/sqlite-core";
 
-export const companies = sqliteTable("companies", {
-  id: text("id").primaryKey(),
-  clerkUserId: text("clerk_user_id").notNull().unique(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  logoKey: text("logo_key"),
-  accentColor: text("accent_color"),
-  plan: text("plan").notNull().default("unlimited"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch() * 1000)`),
-});
+export const companies = sqliteTable(
+  "companies",
+  {
+    id: text("id").primaryKey(),
+    clerkUserId: text("clerk_user_id").notNull(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logoKey: text("logo_key"),
+    accentColor: text("accent_color"),
+    plan: text("plan").notNull().default("unlimited"),
+    theme: text("theme", { enum: ["dark", "light"] }).notNull().default("dark"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [index("idx_companies_clerk_user_id").on(t.clerkUserId)],
+);
 
 export const events = sqliteTable(
   "events",
@@ -36,6 +41,7 @@ export const events = sqliteTable(
     published: integer("published", { mode: "boolean" }).notNull().default(false),
     pinHash: text("pin_hash"),
     sortMode: text("sort_mode").notNull().default("capture"), // 'capture' | 'manual'
+    theme: text("theme", { enum: ["dark", "light"] }), // null = inherit company theme
     viewCount: integer("view_count").notNull().default(0),
     downloadCount: integer("download_count").notNull().default(0),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),

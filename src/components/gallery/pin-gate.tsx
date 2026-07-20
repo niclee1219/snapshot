@@ -12,7 +12,7 @@ export function PinGate({
   slug: string;
   eventSlug: string;
   eventName: string;
-  accent: string;
+  accent?: string;
 }) {
   const router = useRouter();
   const [pin, setPin] = useState("");
@@ -45,7 +45,7 @@ export function PinGate({
   return (
     <div
       className="flex min-h-dvh flex-col items-center justify-center px-6"
-      style={{ ["--accent" as string]: accent }}
+      style={accent ? { ["--accent" as string]: accent } : undefined}
     >
       <div className="tile-in w-full max-w-xs text-center">
         <p className="gallery-eyebrow">Private gallery</p>
@@ -61,13 +61,13 @@ export function PinGate({
             autoFocus
             maxLength={6}
             placeholder="••••"
-            className="w-full rounded-sm border border-[var(--hairline)] bg-transparent px-4 py-3 text-center text-2xl tracking-[0.5em] placeholder:text-white/20 focus:border-[var(--accent)] focus:outline-none"
+            className="w-full rounded-sm border border-[var(--hairline)] bg-transparent px-4 py-3 text-center text-2xl tracking-[0.5em] text-[var(--ink-strong)] placeholder:text-[var(--placeholder-ink)] focus:border-[var(--accent)] focus:outline-none"
           />
           {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={busy || pin.length < 4}
-            className="mt-4 w-full rounded-sm px-4 py-3 text-sm font-medium text-black transition-opacity disabled:opacity-30"
+            className="mt-4 w-full rounded-sm px-4 py-3 text-sm font-medium text-[var(--accent-ink)] transition-opacity disabled:opacity-30"
             style={{ background: "var(--accent)" }}
           >
             {busy ? "Checking…" : "View gallery"}

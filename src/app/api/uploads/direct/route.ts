@@ -1,19 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { requireCompany } from "@/lib/auth";
+import { eq } from "drizzle-orm";
+import { requireUserId } from "@/lib/auth";
+import { getDbAsync } from "@/db";
+import { companies } from "@/db/schema";
 
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
 
 /**
  * Dev / fallback upload path: streams the request body into the R2 binding.
  * Production uploads normally use presigned URLs and never hit this route.
+ *
+ * Ownership is derived from the key's own company-id prefix (set by the
+ * presign route from the event's own company) rather than the active-space
+ * cookie, so this stays correct even if the admin switched spaces mid-upload.
  */
 export async function PUT(req: NextRequest) {
-  const company = await requireCompany();
+  const userId = await requireUserId();
   const key = req.nextUrl.searchParams.get("key") ?? "";
+  const companyId = key.split("/")[0] ?? "";
 
-  // Admins may only write inside their own prefix.
-  if (!key.startsWith(`${company.id}/`) || key.includes("..")) {
+  if (!companyId || !key.startsWith(`${companyId}/`) || key.includes("..")) {
+    return new NextResponse("Invalid key", { status: 403 });
+  }
+
+  const db = await getDbAsync();
+  const company = await db
+    .select({ id: companies.id, clerkUserId: companies.clerkUserId })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .get();
+  if (!company || company.clerkUserId !== userId) {
     return new NextResponse("Invalid key", { status: 403 });
   }
 

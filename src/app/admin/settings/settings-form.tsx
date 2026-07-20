@@ -1,13 +1,45 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
+import { toast } from "sonner";
 import { updateCompany, type ActionState } from "../actions";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 export function SettingsForm({
   initial,
 }: {
-  initial: { name: string; accentColor: string; logoUrl: string | null };
+  initial: {
+    name: string;
+    accentColor: string;
+    logoUrl: string | null;
+    theme: "dark" | "light";
+  };
 }) {
+  const formId = useId();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     updateCompany,
     null,
@@ -31,81 +63,107 @@ export function SettingsForm({
       setLogoKey(key);
       setLogoPreview(URL.createObjectURL(file));
     } catch {
-      alert("Logo upload failed. Please try again.");
+      toast.error("Logo upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
   }
 
   return (
-    <form action={formAction} className="mt-6 space-y-5">
-      <input type="hidden" name="logoKey" value={logoKey} />
-      <div>
-        <label className="block text-sm font-medium" htmlFor="name">
-          Company name
-        </label>
-        <input
-          id="name"
-          name="name"
-          defaultValue={initial.name}
-          required
-          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
-        />
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Space</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form id={formId} action={formAction}>
+          <input type="hidden" name="logoKey" value={logoKey} />
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="space-name">Space name</FieldLabel>
+              <Input
+                id="space-name"
+                name="name"
+                defaultValue={initial.name}
+                required
+              />
+            </Field>
 
-      <div>
-        <label className="block text-sm font-medium">Logo</label>
-        <div className="mt-1 flex items-center gap-3">
-          {logoPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoPreview}
-              alt="Company logo"
-              className="h-12 w-12 rounded-md border border-zinc-200 object-contain"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-400">
-              —
-            </div>
-          )}
-          <label className="cursor-pointer rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50">
-            {uploading ? "Uploading…" : "Upload logo"}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="hidden"
-              onChange={(e) => onLogoChange(e.target.files?.[0])}
-            />
-          </label>
-        </div>
-      </div>
+            <Field>
+              <FieldLabel htmlFor="space-logo">Logo</FieldLabel>
+              <div className="flex items-center gap-3">
+                {logoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoPreview}
+                    alt="Space logo"
+                    className="h-12 w-12 rounded-md object-contain ring-1 ring-border"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                    —
+                  </div>
+                )}
+                <label
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "cursor-pointer",
+                  )}
+                >
+                  {uploading && <Spinner data-icon="inline-start" />}
+                  {uploading ? "Uploading…" : "Upload logo"}
+                  <input
+                    id="space-logo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => onLogoChange(e.target.files?.[0])}
+                  />
+                </label>
+              </div>
+            </Field>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="accentColor">
-          Accent color
-        </label>
-        <div className="mt-1 flex items-center gap-2">
-          <input
-            id="accentColor"
-            name="accentColor"
-            type="color"
-            defaultValue={initial.accentColor || "#18181b"}
-            className="h-9 w-14 cursor-pointer rounded border border-zinc-300"
-          />
-          <span className="text-xs text-zinc-500">
-            Used for buttons and highlights on your public galleries.
-          </span>
-        </div>
-      </div>
+            <Field>
+              <FieldLabel htmlFor="accentColor">Accent color</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="accentColor"
+                  name="accentColor"
+                  type="color"
+                  defaultValue={initial.accentColor || "#18181b"}
+                  className="h-8 w-16 cursor-pointer p-1"
+                />
+                <FieldDescription className="mt-0">
+                  Used for buttons and highlights on your public galleries.
+                </FieldDescription>
+              </div>
+            </Field>
 
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={pending || uploading}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40"
-      >
-        {pending ? "Saving…" : "Save settings"}
-      </button>
-    </form>
+            <Field>
+              <FieldLabel htmlFor="theme">Theme</FieldLabel>
+              <Select name="theme" defaultValue={initial.theme}>
+                <SelectTrigger id="theme" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="light">Light</SelectItem>
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                Default theme for every event, unless an event overrides it.
+              </FieldDescription>
+            </Field>
+
+            {state?.error && <FieldError>{state.error}</FieldError>}
+          </FieldGroup>
+        </form>
+      </CardContent>
+      <CardFooter>
+        <Button type="submit" form={formId} disabled={pending || uploading}>
+          {pending && <Spinner data-icon="inline-start" />}
+          {pending ? "Saving…" : "Save settings"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
