@@ -7,7 +7,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDbAsync } from "@/db";
-import { companies, events, photos } from "@/db/schema";
+import { companies, events, photos, segments } from "@/db/schema";
 import {
   ACTIVE_SPACE_COOKIE,
   assertAllowedAdmin,
@@ -412,4 +412,103 @@ export async function listEventPhotos(eventId: string) {
     .where(eq(photos.eventId, event.id))
     .orderBy(asc(photos.sortIndex), asc(photos.capturedAt), asc(photos.createdAt))
     .all();
+}
+
+// ── Segments ──────────────────────────────────────────────────────────────────
+
+/**
+ * Looks up a segment by id and enforces the same ownership check as every
+ * other action in this file, keyed via the segment's parent event. There's
+ * no `requireOwnedEvent`-equivalent helper keyed by segment id in
+ * `@/lib/auth`, so segment-id-scoped actions resolve ownership inline here.
+ */
+async function requireOwnedSegment(segmentId: string) {
+  const db = await getDbAsync();
+  const segment = await db
+    .select()
+    .from(segments)
+    .where(eq(segments.id, segmentId))
+    .get();
+  if (!segment) throw new Error("Segment not found");
+  const { company, event } = await requireOwnedEvent(segment.eventId);
+  return { company, event, segment };
+}
+
+export async function createSegment(eventId: string, name: string) {
+  const { event } = await requireOwnedEvent(eventId);
+  const db = await getDbAsync();
+  const existing = await db
+    .select({ sortIndex: segments.sortIndex })
+    .from(segments)
+    .where(eq(segments.eventId, event.id))
+    .all();
+  const nextSortIndex =
+    existing.length === 0
+      ? 0
+      : Math.max(...existing.map((s) => s.sortIndex)) + 1;
+
+  const id = nanoid();
+  await db.insert(segments).values({
+    id,
+    eventId: event.id,
+    name,
+    sortIndex: nextSortIndex,
+  });
+  revalidatePath(`/admin/events/${event.id}`);
+  return db.select().from(segments).where(eq(segments.id, id)).get();
+}
+
+export async function renameSegment(segmentId: string, name: string) {
+  const { event, segment } = await requireOwnedSegment(segmentId);
+  const db = await getDbAsync();
+  await db.update(segments).set({ name }).where(eq(segments.id, segment.id));
+  revalidatePath(`/admin/events/${event.id}`);
+}
+
+export async function deleteSegment(segmentId: string) {
+  const { event, segment } = await requireOwnedSegment(segmentId);
+  const db = await getDbAsync();
+  // The generated ADD-COLUMN migration for photos.segment_id does not carry
+  // an ON DELETE SET NULL clause (a drizzle-kit/SQLite limitation), so the
+  // FK will not cascade this automatically. Null out referencing photos
+  // first, then delete the segment row, to avoid violating the FK (or
+  // silently dangling if FK enforcement is off).
+  await db
+    .update(photos)
+    .set({ segmentId: null })
+    .where(eq(photos.segmentId, segment.id));
+  await db.delete(segments).where(eq(segments.id, segment.id));
+  revalidatePath(`/admin/events/${event.id}`);
+}
+
+export async function reorderSegments(eventId: string, orderedIds: string[]) {
+  const { event } = await requireOwnedEvent(eventId);
+  const db = await getDbAsync();
+  const updates = orderedIds.map((id, i) =>
+    db
+      .update(segments)
+      .set({ sortIndex: i })
+      .where(and(eq(segments.eventId, event.id), eq(segments.id, id))),
+  );
+  // D1 batch keeps this a single round-trip per chunk instead of N queries.
+  for (let i = 0; i < updates.length; i += 100) {
+    const chunk = updates.slice(i, i + 100);
+    await db.batch([chunk[0], ...chunk.slice(1)]);
+  }
+  revalidatePath(`/admin/events/${event.id}`);
+}
+
+export async function assignPhotosToSegment(
+  eventId: string,
+  photoIds: string[],
+  segmentId: string | null,
+) {
+  const { event } = await requireOwnedEvent(eventId);
+  if (photoIds.length === 0) return;
+  const db = await getDbAsync();
+  await db
+    .update(photos)
+    .set({ segmentId })
+    .where(and(eq(photos.eventId, event.id), inArray(photos.id, photoIds)));
+  revalidatePath(`/admin/events/${event.id}`);
 }
