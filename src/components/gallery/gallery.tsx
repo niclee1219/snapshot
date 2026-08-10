@@ -20,6 +20,17 @@ export type GalleryPhoto = {
   fileName: string;
   width: number;
   height: number;
+  segmentId?: string | null;
+};
+
+type GallerySegment = { id: string; name: string };
+
+/** A run of adjacent photos sharing the same segment (or lack thereof), in flat display order. */
+type PhotoGroup = {
+  segmentId: string | null;
+  photos: GalleryPhoto[];
+  /** Index of this group's first photo within the full flat `photos` array. */
+  startIndex: number;
 };
 
 type Props = {
@@ -32,6 +43,7 @@ type Props = {
   coverUrl: string | null;
   accent?: string;
   photos: GalleryPhoto[];
+  segments: GallerySegment[];
 };
 
 export function Gallery({
@@ -44,6 +56,7 @@ export function Gallery({
   coverUrl,
   accent,
   photos,
+  segments,
 }: Props) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -102,6 +115,61 @@ export function Gallery({
   function onTilePressEnd() {
     if (longPress.current) clearTimeout(longPress.current);
     longPress.current = null;
+  }
+
+  // Group photos into adjacent runs by segmentId, preserving the flat display order the
+  // photos array already arrives in (sortMode-sorted server-side) — no re-sorting here.
+  // The overwhelming common case is zero segments, which collapses to a single group and
+  // takes the exact same rendering path the gallery used before segments existed.
+  const groups = useMemo<PhotoGroup[]>(() => {
+    const result: PhotoGroup[] = [];
+    photos.forEach((photo, i) => {
+      const segmentId = photo.segmentId ?? null;
+      const last = result[result.length - 1];
+      if (last && last.segmentId === segmentId) {
+        last.photos.push(photo);
+      } else {
+        result.push({ segmentId, photos: [photo], startIndex: i });
+      }
+    });
+    return result;
+  }, [photos]);
+
+  const isFlat = groups.length <= 1;
+
+  function labelForGroup(segmentId: string | null) {
+    if (segmentId === null) return "More";
+    return segments.find((s) => s.id === segmentId)?.name ?? "Untitled";
+  }
+
+  const navItems = useMemo(() => {
+    if (isFlat) return [];
+    const firstGroupIndexBySegment = new Map<string | null, number>();
+    groups.forEach((g, idx) => {
+      if (!firstGroupIndexBySegment.has(g.segmentId)) {
+        firstGroupIndexBySegment.set(g.segmentId, idx);
+      }
+    });
+    const items: { key: string; label: string; groupIndex: number }[] = [];
+    for (const seg of segments) {
+      const idx = firstGroupIndexBySegment.get(seg.id);
+      if (idx !== undefined) items.push({ key: seg.id, label: seg.name, groupIndex: idx });
+    }
+    const noneIdx = firstGroupIndexBySegment.get(null);
+    if (noneIdx !== undefined) {
+      const entry = { key: "__none__", label: "More", groupIndex: noneIdx };
+      // Unsegmented photos that lead the gallery get their pill first; otherwise it
+      // trails the segment pills, matching where the group actually falls on screen.
+      if (noneIdx === 0) items.unshift(entry);
+      else items.push(entry);
+    }
+    return items;
+  }, [groups, segments, isFlat]);
+
+  function scrollToGroup(groupIndex: number) {
+    document
+      .getElementById(`segment-group-${groupIndex}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const selectedPhotos = photos.filter((p) => selected.has(p.id));
@@ -228,12 +296,29 @@ export function Gallery({
         </div>
       </div>
 
+      {/* ── Jump-nav (only when the event actually has segmented groups) ── */}
+      {navItems.length > 0 && (
+        <div className="sticky top-12 z-20 border-b border-[var(--hairline)] bg-[var(--paper)]/90 backdrop-blur">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-5 py-2">
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => scrollToGroup(item.groupIndex)}
+                className="rounded-full border border-[var(--hairline)] px-3 py-1 text-xs text-[var(--mist)] transition-colors hover:text-[var(--ink-strong)]"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Grid ── */}
       {photos.length === 0 ? (
         <p className="px-5 py-24 text-center text-sm text-[var(--mist)]">
           Photos are on their way — check back soon.
         </p>
-      ) : (
+      ) : isFlat ? (
         <JustifiedGrid
           photos={photos}
           selectMode={selectMode}
@@ -244,6 +329,26 @@ export function Gallery({
           longPressActiveRef={longPress}
           revealed={revealed}
         />
+      ) : (
+        groups.map((group, groupIndex) => (
+          <div key={groupIndex} id={`segment-group-${groupIndex}`}>
+            <h2 className="mx-auto max-w-5xl px-5 pb-3 pt-8 text-sm font-medium text-[var(--ink-strong)] sm:px-5">
+              {labelForGroup(group.segmentId)}
+            </h2>
+            <JustifiedGrid
+              photos={group.photos}
+              selectMode={selectMode}
+              selected={selected}
+              onTileClick={(localIndex, id) =>
+                onTileClick(group.startIndex + localIndex, id)
+              }
+              onTilePressStart={onTilePressStart}
+              onTilePressEnd={onTilePressEnd}
+              longPressActiveRef={longPress}
+              revealed={revealed}
+            />
+          </div>
+        ))
       )}
 
       {/* ── Selection action bar ── */}

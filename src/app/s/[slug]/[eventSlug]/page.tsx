@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   getCompanyBySlug,
+  getEventSegments,
   getPublishedEvent,
   getVisiblePhotos,
 } from "@/lib/tenant";
@@ -68,9 +69,10 @@ export default async function EventGalleryPage({
     }
   }
 
-  const [rows, mediaBase] = await Promise.all([
+  const [rows, mediaBase, eventSegments] = await Promise.all([
     getVisiblePhotos(event.id, event.sortMode),
     getMediaBase(),
+    getEventSegments(event.id),
   ]);
 
   // Count the gallery view without blocking the response.
@@ -96,6 +98,7 @@ export default async function EventGalleryPage({
     fileName: p.fileName,
     width: p.width,
     height: p.height,
+    segmentId: p.segmentId,
   }));
 
   const cover = event.coverPhotoId
@@ -129,6 +132,7 @@ export default async function EventGalleryPage({
         coverUrl={coverRow ? mediaUrl(mediaBase, coverRow.keyDisplay) : null}
         accent={accent}
         photos={galleryPhotos}
+        segments={eventSegments.map((s) => ({ id: s.id, name: s.name }))}
       />
     </div>
   );

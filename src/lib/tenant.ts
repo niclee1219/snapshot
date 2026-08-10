@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDbAsync } from "@/db";
-import { companies, events, photos } from "@/db/schema";
+import { companies, events, photos, segments } from "@/db/schema";
 
 export async function getCompanyBySlug(slug: string) {
   const db = await getDbAsync();
@@ -46,5 +46,16 @@ export async function getVisiblePhotos(eventId: string, sortMode: string) {
     .from(photos)
     .where(and(eq(photos.eventId, eventId), eq(photos.hidden, false)))
     .orderBy(...orderBy)
+    .all();
+}
+
+/** Segments for an event, in configured display order. */
+export async function getEventSegments(eventId: string) {
+  const db = await getDbAsync();
+  return db
+    .select()
+    .from(segments)
+    .where(eq(segments.eventId, eventId))
+    .orderBy(asc(segments.sortIndex))
     .all();
 }
