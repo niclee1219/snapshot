@@ -184,7 +184,7 @@ export function Gallery({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const selectedPhotos = photos.filter((p) => selected.has(p.id));
+  const selectedPhotos = visualPhotos.filter((p) => selected.has(p.id));
 
   async function handleShare() {
     setBusy("share");
@@ -350,9 +350,12 @@ export function Gallery({
           <div
             key={groupIndex}
             id={`segment-group-${groupIndex}`}
-            className="scroll-mt-28"
+            // Offset = toolbar (h-12 = 48px) + jump-nav row (py-2 = 16px + pill
+            // text-xs/py-1 content ~24px = 40px) = 88px. Verify visually once a
+            // browser is available.
+            className="scroll-mt-[88px]"
           >
-            <div className="sticky top-28 z-10 bg-[var(--paper)]/90 backdrop-blur">
+            <div className="sticky top-[88px] z-10 bg-[var(--paper)]/90 backdrop-blur">
               <h2 className="gallery-display mx-auto max-w-5xl px-5 pb-1 pt-8 text-2xl text-[var(--ink-strong)] sm:px-5 sm:text-3xl">
                 {labelForGroup(group.segmentId)}
               </h2>

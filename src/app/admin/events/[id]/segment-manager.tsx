@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { GripVertical } from "lucide-react";
 import {
+  closestCenter,
   DndContext,
   PointerSensor,
   useSensor,
@@ -49,6 +50,8 @@ export function SegmentManager({
   const [editName, setEditName] = useState("");
   const [actionPending, startAction] = useTransition();
   const sensors = useSensors(
+    // Dedicated grip handle has no competing click/scroll gesture, so a small
+    // distance threshold is fine and keeps drag start responsive.
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
 
@@ -155,12 +158,15 @@ export function SegmentManager({
         ) : (
           <>
             <p className="mb-3 text-xs text-muted-foreground">
-              Segments group photos in their existing display order — reordering
-              here changes jump-nav order, not photo order. If a segment&apos;s
-              photos aren&apos;t assigned as one contiguous block, the segment
-              may appear more than once in the gallery.
+              Each segment renders as one continuous section in the gallery.
+              Drag to reorder — this changes the order sections appear in;
+              unassigned photos always come last.
             </p>
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
               <SortableContext
                 items={ordered.map((s) => s.id)}
                 strategy={verticalListSortingStrategy}
@@ -231,7 +237,7 @@ function SegmentRow({
   onDelete: () => void;
   actionPending: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: segment.id });
 
   const style = {
@@ -248,7 +254,6 @@ function SegmentRow({
       }`}
     >
       <GripVertical
-        {...attributes}
         {...listeners}
         className="h-4 w-4 shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
       />

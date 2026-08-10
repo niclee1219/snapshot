@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { toast } from "sonner";
 import {
+  closestCenter,
   DndContext,
   PointerSensor,
   useSensor,
@@ -69,7 +70,13 @@ export function PhotoManager({
   const [actionPending, startAction] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // The whole tile is the drag surface (no dedicated handle) and must also
+    // support tap-to-select and touch-scroll, so use a press-and-hold delay
+    // rather than a distance threshold — a quick swipe/tap falls through to
+    // native scroll/click instead of immediately locking into a drag.
+    useSensor(PointerSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
   );
 
   const ordered = order
@@ -299,6 +306,7 @@ export function PhotoManager({
         ) : (
           <DndContext
             sensors={sensors}
+            collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
             <SortableContext
@@ -352,14 +360,8 @@ function PhotoTile({
   segmentName: string | null;
   segmentColor: string | null;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: photo.id });
+  const { listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: photo.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -370,7 +372,6 @@ function PhotoTile({
     <li
       ref={setNodeRef}
       style={style}
-      {...attributes}
       {...listeners}
       className={`group relative aspect-square cursor-pointer touch-none overflow-hidden rounded-md border-2 ${
         selected ? "border-foreground" : "border-transparent"
@@ -396,9 +397,9 @@ function PhotoTile({
       )}
       {segmentName && segmentColor && (
         <Badge
-          className={`absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate ${segmentColor}`}
+          className={`absolute bottom-1 left-1 max-w-[calc(100%-2rem)] truncate ${segmentColor}`}
         >
-          <span className="truncate">{segmentName}</span>
+          <span className="min-w-0 truncate">{segmentName}</span>
         </Badge>
       )}
       <span
