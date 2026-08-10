@@ -9,6 +9,7 @@ import {
   type UploadItem,
 } from "@/lib/client/uploader";
 import {
+  assignPhotosToSegment,
   deletePhotos,
   reorderPhotos,
   setCoverPhoto,
@@ -17,6 +18,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type AdminPhoto = {
   id: string;
@@ -26,14 +34,17 @@ export type AdminPhoto = {
   height: number;
   hidden: boolean;
   isCover: boolean;
+  segmentId: string | null;
 };
 
 export function PhotoManager({
   eventId,
   photos,
+  segments,
 }: {
   eventId: string;
   photos: AdminPhoto[];
+  segments: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -179,6 +190,32 @@ export function PhotoManager({
               >
                 Set as cover
               </Button>
+            )}
+            {segments.length > 0 && (
+              <Select
+                value=""
+                onValueChange={(value) =>
+                  runAction(() =>
+                    assignPhotosToSegment(
+                      eventId,
+                      [...selected],
+                      value === "none" ? null : (value as string),
+                    ),
+                  )
+                }
+              >
+                <SelectTrigger size="sm" disabled={actionPending}>
+                  <SelectValue placeholder="Assign to segment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {segments.map((segment) => (
+                    <SelectItem key={segment.id} value={segment.id}>
+                      {segment.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             <Button
               variant="destructive"

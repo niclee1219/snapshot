@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import { asc, eq, sql } from "drizzle-orm";
 import { requireOwnedEvent } from "@/lib/auth";
 import { getDbAsync } from "@/db";
-import { photos } from "@/db/schema";
+import { photos, segments } from "@/db/schema";
 import { getMediaBase, mediaUrl } from "@/lib/media";
 import { Separator } from "@/components/ui/separator";
 import { EventHeader } from "./event-header";
 import { EventSettingsForm } from "./event-settings-form";
 import { PhotoManager, type AdminPhoto } from "./photo-manager";
+import { SegmentManager } from "./segment-manager";
 
 export default async function EventPage({
   params,
@@ -35,6 +36,13 @@ export default async function EventPage({
     .where(eq(photos.eventId, event.id))
     .get();
 
+  const segmentRows = await db
+    .select()
+    .from(segments)
+    .where(eq(segments.eventId, event.id))
+    .orderBy(asc(segments.sortIndex))
+    .all();
+
   const mediaBase = await getMediaBase();
   const adminPhotos: AdminPhoto[] = rows.map((p) => ({
     id: p.id,
@@ -44,6 +52,7 @@ export default async function EventPage({
     height: p.height,
     hidden: p.hidden,
     isCover: p.id === event.coverPhotoId,
+    segmentId: p.segmentId,
   }));
 
   return (
@@ -80,7 +89,13 @@ export default async function EventPage({
         }}
       />
 
-      <PhotoManager eventId={event.id} photos={adminPhotos} />
+      <SegmentManager eventId={event.id} segments={segmentRows} />
+
+      <PhotoManager
+        eventId={event.id}
+        photos={adminPhotos}
+        segments={segmentRows}
+      />
     </div>
   );
 }
