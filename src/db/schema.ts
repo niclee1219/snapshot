@@ -55,6 +55,22 @@ export const events = sqliteTable(
   ],
 );
 
+export const segments = sqliteTable(
+  "segments",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    sortIndex: integer("sort_index").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [index("segments_event_idx").on(t.eventId)],
+);
+
 export const photos = sqliteTable(
   "photos",
   {
@@ -62,6 +78,7 @@ export const photos = sqliteTable(
     eventId: text("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
+    segmentId: text("segment_id").references(() => segments.id, { onDelete: "set null" }),
     keyOriginal: text("key_original").notNull(),
     keyDisplay: text("key_display").notNull(),
     keyThumb: text("key_thumb").notNull(),
@@ -82,3 +99,4 @@ export const photos = sqliteTable(
 export type Company = typeof companies.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
+export type Segment = typeof segments.$inferSelect;

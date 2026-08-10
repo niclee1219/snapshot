@@ -15,6 +15,13 @@
       "when": 1784482051562,
       "tag": "0001_omniscient_paibok",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786341206022,
+      "tag": "0002_spooky_mother_askani",
+      "breakpoints": true
     }
   ]
 }
