@@ -53,6 +53,10 @@ export function Lightbox({
   }, [index, displayIndex]);
 
   const photo = photos[displayIndex];
+  // Share/Download always act on the target photo the user navigated to, not the one
+  // still visually fading out during the cross-fade window (`photo`/`displayIndex` above
+  // are for rendering only) — see PHOTO_SWAP_MS.
+  const currentPhoto = photos[index];
 
   const go = useCallback(
     (delta: number) => {
@@ -176,9 +180,13 @@ export function Lightbox({
             onClick={async () => {
               setBusy("share");
               try {
-                const result = await sharePhotos(eventId, [photo], eventName);
+                const result = await sharePhotos(
+                  eventId,
+                  [currentPhoto],
+                  eventName,
+                );
                 if (result === "unsupported" || result === "failed") {
-                  await downloadSingle(eventId, photo);
+                  await downloadSingle(eventId, currentPhoto);
                 }
               } finally {
                 setBusy(null);
@@ -194,7 +202,7 @@ export function Lightbox({
           onClick={async () => {
             setBusy("download");
             try {
-              await downloadSingle(eventId, photo);
+              await downloadSingle(eventId, currentPhoto);
             } catch {
               alert("Download failed — please try again.");
             } finally {

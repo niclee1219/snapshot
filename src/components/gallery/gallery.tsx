@@ -153,7 +153,8 @@ export function Gallery({
     const items: { key: string; label: string; groupIndex: number }[] = [];
     for (const seg of segments) {
       const idx = firstGroupIndexBySegment.get(seg.id);
-      if (idx !== undefined) items.push({ key: seg.id, label: seg.name, groupIndex: idx });
+      if (idx !== undefined)
+        items.push({ key: seg.id, label: seg.name, groupIndex: idx });
     }
     const noneIdx = firstGroupIndexBySegment.get(null);
     if (noneIdx !== undefined) {
@@ -240,7 +241,11 @@ export function Gallery({
           <div className={revealed ? "tile-in" : undefined}>
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={companyName} className="mb-5 h-8 w-auto" />
+              <img
+                src={logoUrl}
+                alt={companyName}
+                className="mb-5 h-8 w-auto"
+              />
             ) : (
               <p className="gallery-eyebrow mb-3">{companyName}</p>
             )}
@@ -331,7 +336,11 @@ export function Gallery({
         />
       ) : (
         groups.map((group, groupIndex) => (
-          <div key={groupIndex} id={`segment-group-${groupIndex}`}>
+          <div
+            key={groupIndex}
+            id={`segment-group-${groupIndex}`}
+            className="scroll-mt-28"
+          >
             <h2 className="mx-auto max-w-5xl px-5 pb-3 pt-8 text-sm font-medium text-[var(--ink-strong)] sm:px-5">
               {labelForGroup(group.segmentId)}
             </h2>
@@ -346,6 +355,7 @@ export function Gallery({
               onTilePressEnd={onTilePressEnd}
               longPressActiveRef={longPress}
               revealed={revealed}
+              startIndex={group.startIndex}
             />
           </div>
         ))

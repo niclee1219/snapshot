@@ -125,88 +125,96 @@ export function SegmentManager({
             sections.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {ordered.map((segment) => (
-              <li
-                key={segment.id}
-                draggable
-                onDragStart={() => (dragId.current = segment.id)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  const from = dragId.current;
-                  if (!from || from === segment.id) return;
-                  const ids = (order ?? ordered.map((s) => s.id)).slice();
-                  const fromIdx = ids.indexOf(from);
-                  const toIdx = ids.indexOf(segment.id);
-                  ids.splice(fromIdx, 1);
-                  ids.splice(toIdx, 0, from);
-                  setOrder(ids);
-                }}
-                onDragEnd={() => (dragId.current = null)}
-                className="flex cursor-move items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
-              >
-                {editingId === segment.id ? (
-                  <>
-                    <Input
-                      autoFocus
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          saveEdit();
-                        } else if (e.key === "Escape") {
-                          setEditingId(null);
-                        }
-                      }}
-                      className="h-8 flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      disabled={actionPending || !editName.trim()}
-                      onClick={saveEdit}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex-1 text-sm">{segment.name}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => startEdit(segment)}
-                    >
-                      Rename
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={actionPending}
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Delete segment "${segment.name}"? Photos in it will become unassigned.`,
-                          )
-                        ) {
-                          runAction(() => deleteSegment(segment.id));
-                        }
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Segments group photos in their existing display order — reordering
+              here changes jump-nav order, not photo order. If a segment&apos;s
+              photos aren&apos;t assigned as one contiguous block, the segment
+              may appear more than once in the gallery.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {ordered.map((segment) => (
+                <li
+                  key={segment.id}
+                  draggable
+                  onDragStart={() => (dragId.current = segment.id)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    const from = dragId.current;
+                    if (!from || from === segment.id) return;
+                    const ids = (order ?? ordered.map((s) => s.id)).slice();
+                    const fromIdx = ids.indexOf(from);
+                    const toIdx = ids.indexOf(segment.id);
+                    ids.splice(fromIdx, 1);
+                    ids.splice(toIdx, 0, from);
+                    setOrder(ids);
+                  }}
+                  onDragEnd={() => (dragId.current = null)}
+                  className="flex cursor-move items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
+                >
+                  {editingId === segment.id ? (
+                    <>
+                      <Input
+                        autoFocus
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveEdit();
+                          } else if (e.key === "Escape") {
+                            setEditingId(null);
+                          }
+                        }}
+                        className="h-8 flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={actionPending || !editName.trim()}
+                        onClick={saveEdit}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm">{segment.name}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startEdit(segment)}
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={actionPending}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Delete segment "${segment.name}"? Photos in it will become unassigned.`,
+                            )
+                          ) {
+                            runAction(() => deleteSegment(segment.id));
+                          }
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </CardContent>
     </Card>

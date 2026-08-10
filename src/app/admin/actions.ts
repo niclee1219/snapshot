@@ -166,9 +166,7 @@ export async function updateCompany(
       name,
       accentColor,
       ...themeUpdate,
-      ...(typeof logoKey === "string" && logoKey !== ""
-        ? { logoKey }
-        : {}),
+      ...(typeof logoKey === "string" && logoKey !== "" ? { logoKey } : {}),
     })
     .where(eq(companies.id, company.id));
   revalidatePath("/admin");
@@ -262,7 +260,14 @@ export async function updateEvent(
   const db = await getDbAsync();
   await db
     .update(events)
-    .set({ name, eventDate, welcomeMessage, accentColor, urlSlug, ...themeUpdate })
+    .set({
+      name,
+      eventDate,
+      welcomeMessage,
+      accentColor,
+      urlSlug,
+      ...themeUpdate,
+    })
     .where(eq(events.id, event.id));
   revalidatePath(`/admin/events/${event.id}`);
   return null;
@@ -271,10 +276,7 @@ export async function updateEvent(
 export async function setEventPublished(eventId: string, published: boolean) {
   const { event } = await requireOwnedEvent(eventId);
   const db = await getDbAsync();
-  await db
-    .update(events)
-    .set({ published })
-    .where(eq(events.id, event.id));
+  await db.update(events).set({ published }).where(eq(events.id, event.id));
   revalidatePath(`/admin/events/${event.id}`);
   revalidatePath("/admin");
 }
@@ -398,7 +400,10 @@ export async function reorderPhotos(eventId: string, orderedIds: string[]) {
 export async function setSortMode(eventId: string, mode: "capture" | "manual") {
   const { event } = await requireOwnedEvent(eventId);
   const db = await getDbAsync();
-  await db.update(events).set({ sortMode: mode }).where(eq(events.id, event.id));
+  await db
+    .update(events)
+    .set({ sortMode: mode })
+    .where(eq(events.id, event.id));
   revalidatePath(`/admin/events/${event.id}`);
 }
 
@@ -410,7 +415,11 @@ export async function listEventPhotos(eventId: string) {
     .select()
     .from(photos)
     .where(eq(photos.eventId, event.id))
-    .orderBy(asc(photos.sortIndex), asc(photos.capturedAt), asc(photos.createdAt))
+    .orderBy(
+      asc(photos.sortIndex),
+      asc(photos.capturedAt),
+      asc(photos.createdAt),
+    )
     .all();
 }
 
@@ -436,6 +445,8 @@ async function requireOwnedSegment(segmentId: string) {
 
 export async function createSegment(eventId: string, name: string) {
   const { event } = await requireOwnedEvent(eventId);
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error("Segment name is required.");
   const db = await getDbAsync();
   const existing = await db
     .select({ sortIndex: segments.sortIndex })
@@ -451,7 +462,7 @@ export async function createSegment(eventId: string, name: string) {
   await db.insert(segments).values({
     id,
     eventId: event.id,
-    name,
+    name: trimmedName,
     sortIndex: nextSortIndex,
   });
   revalidatePath(`/admin/events/${event.id}`);
@@ -460,8 +471,13 @@ export async function createSegment(eventId: string, name: string) {
 
 export async function renameSegment(segmentId: string, name: string) {
   const { event, segment } = await requireOwnedSegment(segmentId);
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error("Segment name is required.");
   const db = await getDbAsync();
-  await db.update(segments).set({ name }).where(eq(segments.id, segment.id));
+  await db
+    .update(segments)
+    .set({ name: trimmedName })
+    .where(eq(segments.id, segment.id));
   revalidatePath(`/admin/events/${event.id}`);
 }
 
@@ -506,6 +522,16 @@ export async function assignPhotosToSegment(
   const { event } = await requireOwnedEvent(eventId);
   if (photoIds.length === 0) return;
   const db = await getDbAsync();
+
+  if (segmentId !== null) {
+    const segment = await db
+      .select({ id: segments.id })
+      .from(segments)
+      .where(and(eq(segments.id, segmentId), eq(segments.eventId, event.id)))
+      .get();
+    if (!segment) throw new Error("Segment not found");
+  }
+
   await db
     .update(photos)
     .set({ segmentId })

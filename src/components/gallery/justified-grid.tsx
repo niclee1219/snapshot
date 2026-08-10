@@ -20,6 +20,8 @@ type Props = {
   longPressActiveRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
   /** Whether tiles receive the .tile-in entrance animation. Defaults to true; the gallery flips it once the intro reveal has run so tiles don't re-animate on later renders. */
   revealed?: boolean;
+  /** This grid's tile-0 position within the full flat gallery (across all segment groups), used to cap eager-loaded images at 8 for the whole page rather than 8 per group. Defaults to 0. */
+  startIndex?: number;
 };
 
 export function JustifiedGrid({
@@ -31,6 +33,7 @@ export function JustifiedGrid({
   onTilePressEnd,
   longPressActiveRef,
   revealed = true,
+  startIndex = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(ASSUMED_WIDTH);
@@ -95,7 +98,9 @@ export function JustifiedGrid({
               return (
                 <div
                   key={photo.id}
-                  className={revealed ? "tile-in relative shrink-0" : "relative shrink-0"}
+                  className={
+                    revealed ? "tile-in relative shrink-0" : "relative shrink-0"
+                  }
                   style={{
                     width: ratio * row.height,
                     height: row.height,
@@ -123,7 +128,7 @@ export function JustifiedGrid({
                     <img
                       src={photo.thumbUrl}
                       alt=""
-                      loading={i < 8 ? "eager" : "lazy"}
+                      loading={startIndex + i < 8 ? "eager" : "lazy"}
                       className={`h-full w-full object-cover transition-[transform,opacity] duration-300 ${
                         isSelected ? "scale-[0.93] opacity-80" : ""
                       }`}

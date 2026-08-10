@@ -17,7 +17,9 @@ export const companies = sqliteTable(
     logoKey: text("logo_key"),
     accentColor: text("accent_color"),
     plan: text("plan").notNull().default("unlimited"),
-    theme: text("theme", { enum: ["dark", "light"] }).notNull().default("dark"),
+    theme: text("theme", { enum: ["dark", "light"] })
+      .notNull()
+      .default("dark"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -38,7 +40,9 @@ export const events = sqliteTable(
     welcomeMessage: text("welcome_message"),
     coverPhotoId: text("cover_photo_id"),
     accentColor: text("accent_color"),
-    published: integer("published", { mode: "boolean" }).notNull().default(false),
+    published: integer("published", { mode: "boolean" })
+      .notNull()
+      .default(false),
     pinHash: text("pin_hash"),
     sortMode: text("sort_mode").notNull().default("capture"), // 'capture' | 'manual'
     theme: text("theme", { enum: ["dark", "light"] }), // null = inherit company theme
@@ -78,7 +82,14 @@ export const photos = sqliteTable(
     eventId: text("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
-    segmentId: text("segment_id").references(() => segments.id, { onDelete: "set null" }),
+    // NOTE: the generated ADD-COLUMN migration for this column does not actually carry an
+    // ON DELETE SET NULL clause (a drizzle-kit/SQLite limitation), so the DB does not enforce
+    // this cascade despite the declaration below. `deleteSegment` in src/app/admin/actions.ts
+    // manually nulls out referencing photos.segmentId before deleting a segment — that is the
+    // source of truth for this cleanup, not this schema declaration.
+    segmentId: text("segment_id").references(() => segments.id, {
+      onDelete: "set null",
+    }),
     keyOriginal: text("key_original").notNull(),
     keyDisplay: text("key_display").notNull(),
     keyThumb: text("key_thumb").notNull(),
