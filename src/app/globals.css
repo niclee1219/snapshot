@@ -192,6 +192,34 @@ body {
 	animation: intro-fade-out 0.3s ease-in forwards;
 }
 
+@keyframes lightbox-photo-in {
+	from {
+		opacity: 0;
+		transform: scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.lightbox-photo-in {
+	animation: lightbox-photo-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes lightbox-photo-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+.lightbox-photo-out {
+	animation: lightbox-photo-out 0.14s ease-in forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.tile-in,
 	.fade-in,
@@ -209,6 +237,13 @@ body {
 	.gallery-intro-eyebrow,
 	.gallery-intro-title,
 	.gallery-intro-fade-out {
+		animation: none;
+		opacity: 1;
+		transform: none;
+	}
+
+	.lightbox-photo-in,
+	.lightbox-photo-out {
 		animation: none;
 		opacity: 1;
 		transform: none;
