@@ -5,6 +5,20 @@ import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { toast } from "sonner";
 import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   uploadFiles,
   type UploadItem,
 } from "@/lib/client/uploader";
@@ -25,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { segmentColorClass } from "@/lib/segment-colors";
 
 export type AdminPhoto = {
   id: string;
@@ -52,8 +67,10 @@ export function PhotoManager({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [order, setOrder] = useState<string[] | null>(null);
   const [actionPending, startAction] = useTransition();
-  const dragId = useRef<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
 
   const ordered = order
     ? order
@@ -106,6 +123,16 @@ export function PhotoManager({
       setSelected(new Set());
       router.refresh();
     });
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = (order ?? ordered.map((p) => p.id)).slice();
+    const fromIdx = ids.indexOf(String(active.id));
+    const toIdx = ids.indexOf(String(over.id));
+    if (fromIdx === -1 || toIdx === -1) return;
+    setOrder(arrayMove(ids, fromIdx, toIdx));
   }
 
   const doneCount = items.filter((i) => i.status === "done").length;
@@ -270,65 +297,119 @@ export function PhotoManager({
             Drop photos here or click to upload
           </button>
         ) : (
-          <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {ordered.map((photo) => (
-              <li
-                key={photo.id}
-                draggable
-                onDragStart={() => (dragId.current = photo.id)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  const from = dragId.current;
-                  if (!from || from === photo.id) return;
-                  const ids = (order ?? ordered.map((p) => p.id)).slice();
-                  const fromIdx = ids.indexOf(from);
-                  const toIdx = ids.indexOf(photo.id);
-                  ids.splice(fromIdx, 1);
-                  ids.splice(toIdx, 0, from);
-                  setOrder(ids);
-                }}
-                onDragEnd={() => (dragId.current = null)}
-                className={`group relative aspect-square cursor-pointer overflow-hidden rounded-md border-2 ${
-                  selected.has(photo.id)
-                    ? "border-foreground"
-                    : "border-transparent"
-                }`}
-                onClick={() => toggleSelect(photo.id)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.thumbUrl}
-                  alt={photo.fileName}
-                  loading="lazy"
-                  className={`h-full w-full object-cover transition-opacity ${
-                    photo.hidden ? "opacity-30" : ""
-                  }`}
-                />
-                {photo.isCover && (
-                  <Badge className="absolute left-1 top-1">Cover</Badge>
-                )}
-                {photo.hidden && (
-                  <Badge variant="secondary" className="absolute right-1 top-1">
-                    Hidden
-                  </Badge>
-                )}
-                <span
-                  className={`absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
-                    selected.has(photo.id)
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-white/70 bg-black/30 text-white opacity-0 group-hover:opacity-100"
-                  }`}
-                >
-                  ✓
-                </span>
-              </li>
-            ))}
-          </ul>
+          <DndContext
+            sensors={sensors}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={ordered.map((p) => p.id)}
+              strategy={rectSortingStrategy}
+            >
+              <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                {ordered.map((photo) => {
+                  const segmentIndex = photo.segmentId
+                    ? segments.findIndex((s) => s.id === photo.segmentId)
+                    : -1;
+                  const segment =
+                    segmentIndex >= 0 ? segments[segmentIndex] : null;
+                  return (
+                    <PhotoTile
+                      key={photo.id}
+                      photo={photo}
+                      selected={selected.has(photo.id)}
+                      onToggleSelect={() => toggleSelect(photo.id)}
+                      segmentName={segment?.name ?? null}
+                      segmentColor={
+                        segmentIndex >= 0
+                          ? segmentColorClass(segmentIndex)
+                          : null
+                      }
+                    />
+                  );
+                })}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
           Drag photos to reorder. Click to select. JPEG/PNG/WebP up to 30MB each.
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+function PhotoTile({
+  photo,
+  selected,
+  onToggleSelect,
+  segmentName,
+  segmentColor,
+}: {
+  photo: AdminPhoto;
+  selected: boolean;
+  onToggleSelect: () => void;
+  segmentName: string | null;
+  segmentColor: string | null;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: photo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`group relative aspect-square cursor-pointer touch-none overflow-hidden rounded-md border-2 ${
+        selected ? "border-foreground" : "border-transparent"
+      } ${isDragging ? "z-10 scale-105 opacity-70 shadow-lg" : ""}`}
+      onClick={onToggleSelect}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photo.thumbUrl}
+        alt={photo.fileName}
+        loading="lazy"
+        className={`h-full w-full object-cover transition-opacity ${
+          photo.hidden ? "opacity-30" : ""
+        }`}
+      />
+      {photo.isCover && (
+        <Badge className="absolute left-1 top-1">Cover</Badge>
+      )}
+      {photo.hidden && (
+        <Badge variant="secondary" className="absolute right-1 top-1">
+          Hidden
+        </Badge>
+      )}
+      {segmentName && segmentColor && (
+        <Badge
+          className={`absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate ${segmentColor}`}
+        >
+          <span className="truncate">{segmentName}</span>
+        </Badge>
+      )}
+      <span
+        className={`absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
+          selected
+            ? "border-foreground bg-foreground text-background"
+            : "border-white/70 bg-black/30 text-white opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        ✓
+      </span>
+    </li>
   );
 }
