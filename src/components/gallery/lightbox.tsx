@@ -98,7 +98,7 @@ export function Lightbox({
 
   return (
     <div
-      className="fade-in fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-md"
+      className="fade-in fixed inset-0 z-50 flex flex-col bg-[var(--panel)] backdrop-blur-md"
       role="dialog"
       aria-modal="true"
     >

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { accentInkFor } from "@/lib/accent-color";
 
 export function PinGate({
   slug,
@@ -45,7 +46,14 @@ export function PinGate({
   return (
     <div
       className="flex min-h-dvh flex-col items-center justify-center px-6"
-      style={accent ? { ["--accent" as string]: accent } : undefined}
+      style={
+        accent
+          ? ({
+              "--accent": accent,
+              "--accent-ink": accentInkFor(accent),
+            } as React.CSSProperties)
+          : undefined
+      }
     >
       <div className="tile-in w-full max-w-xs text-center">
         <p className="gallery-eyebrow">Private gallery</p>

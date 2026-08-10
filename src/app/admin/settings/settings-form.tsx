@@ -129,7 +129,10 @@ export function SettingsForm({
                   id="accentColor"
                   name="accentColor"
                   type="color"
-                  defaultValue={initial.accentColor || "#18181b"}
+                  defaultValue={
+                    initial.accentColor ||
+                    (initial.theme === "light" ? "#1d1a16" : "#e8e4dd")
+                  }
                   className="h-8 w-16 cursor-pointer p-1"
                 />
                 <FieldDescription className="mt-0">

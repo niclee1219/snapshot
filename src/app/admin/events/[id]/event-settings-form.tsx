@@ -108,7 +108,10 @@ export function EventSettingsForm({ event }: { event: EventSettings }) {
                   id="ev-accent"
                   name="accentColor"
                   type="color"
-                  defaultValue={event.accentColor || "#18181b"}
+                  defaultValue={
+                    event.accentColor ||
+                    (event.theme === "light" ? "#1d1a16" : "#e8e4dd")
+                  }
                   className="h-8 w-16 cursor-pointer p-1"
                 />
               </Field>

@@ -11,6 +11,7 @@ import {
   downloadZipOf,
   sharePhotos,
 } from "./actions";
+import { accentInkFor } from "@/lib/accent-color";
 
 export type GalleryPhoto = {
   id: string;
@@ -219,7 +220,16 @@ export function Gallery({
   }
 
   return (
-    <div style={accent ? { ["--accent" as string]: accent } : undefined}>
+    <div
+      style={
+        accent
+          ? ({
+              "--accent": accent,
+              "--accent-ink": accentInkFor(accent),
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* ── Cinematic intro ── */}
       {hasIntro && introMounted && coverUrl && (
         <Intro

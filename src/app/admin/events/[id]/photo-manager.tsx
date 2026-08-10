@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { segmentColorClass } from "@/lib/segment-colors";
+import { segmentColorClass, segmentSwatchClass } from "@/lib/segment-colors";
 
 export type AdminPhoto = {
   id: string;
@@ -51,6 +51,12 @@ export type AdminPhoto = {
   hidden: boolean;
   isCover: boolean;
   segmentId: string | null;
+};
+
+type PhotoGroup = {
+  segmentId: string | null;
+  name: string;
+  photos: AdminPhoto[];
 };
 
 export function PhotoManager({
@@ -84,6 +90,34 @@ export function PhotoManager({
         .map((id) => photos.find((p) => p.id === id))
         .filter((p): p is AdminPhoto => !!p)
     : photos;
+
+  // A photo's segmentId only counts as a real group key if that segment
+  // still exists — stale/deleted segment ids fall back to the same
+  // "unassigned" bucket as photos with no segmentId at all.
+  const validSegmentIds = new Set(segments.map((s) => s.id));
+  const groupKeyOf = (photo: AdminPhoto): string | null =>
+    photo.segmentId && validSegmentIds.has(photo.segmentId)
+      ? photo.segmentId
+      : null;
+
+  // Bucket photos by segment (mirrors the public gallery's grouping in
+  // gallery.tsx) so each segment's photos render together with their own
+  // drag-reorder scope, with unassigned photos trailing in their own group.
+  // Relative order within a group is preserved from `ordered`.
+  const groups = (() => {
+    const result: PhotoGroup[] = [];
+    for (const segment of segments) {
+      const segPhotos = ordered.filter((p) => groupKeyOf(p) === segment.id);
+      if (segPhotos.length === 0) continue;
+      result.push({ segmentId: segment.id, name: segment.name, photos: segPhotos });
+    }
+    const unassigned = ordered.filter((p) => groupKeyOf(p) === null);
+    if (unassigned.length > 0) {
+      result.push({ segmentId: null, name: "Unassigned", photos: unassigned });
+    }
+    return result;
+  })();
+  const isGrouped = groups.length > 1;
 
   const patchItem = useCallback(
     (id: string, patch: Partial<UploadItem>) =>
@@ -135,11 +169,34 @@ export function PhotoManager({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    const activePhoto = photos.find((p) => p.id === active.id);
+    const overPhoto = photos.find((p) => p.id === over.id);
+    if (!activePhoto || !overPhoto) return;
+    // Reordering only makes sense within the same segment group — dragging a
+    // tile toward another segment's section is a no-op; assigning photos to
+    // a different segment stays the job of the "Assign to segment" action.
+    const groupKey = groupKeyOf(activePhoto);
+    if (groupKey !== groupKeyOf(overPhoto)) return;
+
     const ids = (order ?? ordered.map((p) => p.id)).slice();
-    const fromIdx = ids.indexOf(String(active.id));
-    const toIdx = ids.indexOf(String(over.id));
+    const groupIds = ids.filter((id) => {
+      const p = photos.find((ph) => ph.id === id);
+      return p && groupKeyOf(p) === groupKey;
+    });
+    const fromIdx = groupIds.indexOf(String(active.id));
+    const toIdx = groupIds.indexOf(String(over.id));
     if (fromIdx === -1 || toIdx === -1) return;
-    setOrder(arrayMove(ids, fromIdx, toIdx));
+    const reorderedGroup = arrayMove(groupIds, fromIdx, toIdx);
+
+    // Splice the reordered group back into the full flat id list, preserving
+    // every other photo's position — this keeps `reorderPhotos`'s flat
+    // sortIndex persistence working unchanged.
+    let i = 0;
+    const groupMembers = new Set(groupIds);
+    const nextIds = ids.map((id) =>
+      groupMembers.has(id) ? reorderedGroup[i++] : id,
+    );
+    setOrder(nextIds);
   }
 
   const doneCount = items.filter((i) => i.status === "done").length;
@@ -309,34 +366,48 @@ export function PhotoManager({
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext
-              items={ordered.map((p) => p.id)}
-              strategy={rectSortingStrategy}
-            >
-              <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-                {ordered.map((photo) => {
-                  const segmentIndex = photo.segmentId
-                    ? segments.findIndex((s) => s.id === photo.segmentId)
-                    : -1;
-                  const segment =
-                    segmentIndex >= 0 ? segments[segmentIndex] : null;
-                  return (
-                    <PhotoTile
-                      key={photo.id}
-                      photo={photo}
-                      selected={selected.has(photo.id)}
-                      onToggleSelect={() => toggleSelect(photo.id)}
-                      segmentName={segment?.name ?? null}
-                      segmentColor={
-                        segmentIndex >= 0
-                          ? segmentColorClass(segmentIndex)
-                          : null
-                      }
-                    />
-                  );
-                })}
-              </ul>
-            </SortableContext>
+            {groups.map((group) => {
+              const segmentIndex = group.segmentId
+                ? segments.findIndex((s) => s.id === group.segmentId)
+                : -1;
+              return (
+                <div key={group.segmentId ?? "__unassigned__"} className="mt-4">
+                  {isGrouped && (
+                    <div className="mb-2 flex items-center gap-2">
+                      {segmentIndex >= 0 && (
+                        <span
+                          className={`h-2 w-2 rounded-full ${segmentSwatchClass(segmentIndex)}`}
+                        />
+                      )}
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.name} ({group.photos.length})
+                      </h3>
+                    </div>
+                  )}
+                  <SortableContext
+                    items={group.photos.map((p) => p.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                      {group.photos.map((photo) => (
+                        <PhotoTile
+                          key={photo.id}
+                          photo={photo}
+                          selected={selected.has(photo.id)}
+                          onToggleSelect={() => toggleSelect(photo.id)}
+                          segmentName={segmentIndex >= 0 ? group.name : null}
+                          segmentColor={
+                            segmentIndex >= 0
+                              ? segmentColorClass(segmentIndex)
+                              : null
+                          }
+                        />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </div>
+              );
+            })}
           </DndContext>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
