@@ -12,7 +12,7 @@ export function SiteFooter() {
 					pixolateds
 				</a>
 			</div>
-			<div>Made with ♥ in Singapore</div>
+			<div>Made with ♥ in Singapore by Nic</div>
 		</footer>
 	);
 }
