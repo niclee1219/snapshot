@@ -100,6 +100,20 @@ npm run deploy
 Smoke test: `pixolateds.com` + `www` still serve WordPress; `admin.pixolateds.com`
 shows the Clerk sign-in; `anything.pixolateds.com` 404s until a company claims it.
 
+### Subsequent deploys with a schema change
+
+**`npm run deploy` (`opennextjs-cloudflare build && opennextjs-cloudflare deploy`)
+does NOT apply pending D1 migrations.** Whenever a change adds a new migration
+under `drizzle/`, you must apply it to the remote database **before** deploying
+the Worker — otherwise the newly-deployed code will query columns/tables that
+don't exist yet on remote D1 and every affected route will 500 (full outage)
+until the migration is applied:
+
+```bash
+npx wrangler d1 migrations apply pixolateds-db --remote   # 1. migrate remote D1 first
+npm run deploy                                             # 2. then deploy the Worker
+```
+
 ## Cost model
 
 - **Photos never touch the Worker**: served from `media.pixolateds.com`

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getCompanyBySlug, getPublishedEvents } from "@/lib/tenant";
@@ -104,6 +105,18 @@ export default async function TenantHome({
 
   const accent = company.accentColor ?? undefined;
 
+  // Mirror middleware's isTenantHost logic: on a tenant subdomain in
+  // production, middleware already rewrites `/{eventSlug}` to
+  // `/s/{slug}/{eventSlug}` internally, so links must be bare. In local dev
+  // (and any non-tenant host) there's no such rewrite, so links must include
+  // the `/s/{slug}` prefix explicitly or they 404.
+  const host = (await headers()).get("host")?.split(":")[0].toLowerCase() ?? "";
+  const root = process.env.ROOT_DOMAIN || "pixolateds.com";
+  const isAdminHost = host === `admin.${root}`;
+  const onTenantHost =
+    !isAdminHost && host.endsWith(`.${root}`) && host !== `www.${root}`;
+  const hrefBase = onTenantHost ? "" : `/s/${slug}`;
+
   return (
     <div
       className={cn(
@@ -146,7 +159,7 @@ export default async function TenantHome({
                   style={{ animationDelay: `${0.07 * Math.min(i, 10)}s` }}
                 >
                   <Link
-                    href={`/${ev.urlSlug}`}
+                    href={`${hrefBase}/${ev.urlSlug}`}
                     className="group block"
                   >
                     {coverUrl ? (
