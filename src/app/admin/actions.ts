@@ -281,6 +281,20 @@ export async function setEventPublished(eventId: string, published: boolean) {
   revalidatePath("/admin");
 }
 
+export async function setEventShowOnHomepage(
+  eventId: string,
+  showOnHomepage: boolean,
+) {
+  const { event } = await requireOwnedEvent(eventId);
+  const db = await getDbAsync();
+  await db
+    .update(events)
+    .set({ showOnHomepage })
+    .where(eq(events.id, event.id));
+  revalidatePath(`/admin/events/${event.id}`);
+  revalidatePath("/admin");
+}
+
 export async function setEventPin(eventId: string, pin: string | null) {
   const { event } = await requireOwnedEvent(eventId);
   if (pin !== null && !/^\d{4,6}$/.test(pin)) {

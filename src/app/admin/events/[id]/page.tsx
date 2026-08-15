@@ -63,6 +63,7 @@ export default async function EventPage({
             id: event.id,
             name: event.name,
             published: event.published,
+            showOnHomepage: event.showOnHomepage,
             publicUrl: `https://${company.slug}.pixolateds.com/${event.urlSlug}`,
             eventDate: event.eventDate,
             photoCount: rows.length,

@@ -18,7 +18,13 @@ export async function getPublishedEvents(companyId: string) {
   return db
     .select()
     .from(events)
-    .where(and(eq(events.companyId, companyId), eq(events.published, true)))
+    .where(
+      and(
+        eq(events.companyId, companyId),
+        eq(events.published, true),
+        eq(events.showOnHomepage, true),
+      ),
+    )
     .orderBy(asc(events.eventDate))
     .all();
 }

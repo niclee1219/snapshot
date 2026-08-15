@@ -43,6 +43,9 @@ export const events = sqliteTable(
     published: integer("published", { mode: "boolean" })
       .notNull()
       .default(false),
+    showOnHomepage: integer("show_on_homepage", { mode: "boolean" })
+      .notNull()
+      .default(true),
     pinHash: text("pin_hash"),
     sortMode: text("sort_mode").notNull().default("capture"), // 'capture' | 'manual'
     theme: text("theme", { enum: ["dark", "light"] }), // null = inherit company theme

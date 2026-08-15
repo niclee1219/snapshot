@@ -10,7 +10,11 @@ import {
   EyeIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteEvent, setEventPublished } from "../../actions";
+import {
+  deleteEvent,
+  setEventPublished,
+  setEventShowOnHomepage,
+} from "../../actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { formatBytes } from "@/lib/format";
 
 export function EventHeader({
@@ -34,6 +39,7 @@ export function EventHeader({
     id: string;
     name: string;
     published: boolean;
+    showOnHomepage: boolean;
     publicUrl: string;
     eventDate: string | null;
     photoCount: number;
@@ -43,6 +49,7 @@ export function EventHeader({
   };
 }) {
   const [publishPending, startPublish] = useTransition();
+  const [showOnHomepagePending, startShowOnHomepage] = useTransition();
   const [deletePending, startDelete] = useTransition();
   const [copied, setCopied] = useState(false);
 
@@ -53,6 +60,17 @@ export function EventHeader({
       } catch (e) {
         unstable_rethrow(e);
         toast.error("Couldn't update publish state");
+      }
+    });
+  }
+
+  function toggleShowOnHomepage() {
+    startShowOnHomepage(async () => {
+      try {
+        await setEventShowOnHomepage(event.id, !event.showOnHomepage);
+      } catch (e) {
+        unstable_rethrow(e);
+        toast.error("Couldn't update homepage visibility");
       }
     });
   }
@@ -94,6 +112,9 @@ export function EventHeader({
           <Badge variant={event.published ? "default" : "secondary"}>
             {event.published ? "Published" : "Draft"}
           </Badge>
+          {event.published && !event.showOnHomepage && (
+            <Badge variant="secondary">Hidden</Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>{event.eventDate ?? "No date"}</span>
@@ -133,6 +154,14 @@ export function EventHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          Show on homepage
+          <Switch
+            checked={event.showOnHomepage}
+            disabled={showOnHomepagePending}
+            onCheckedChange={toggleShowOnHomepage}
+          />
+        </label>
         <Button
           variant={event.published ? "outline" : "default"}
           disabled={publishPending}

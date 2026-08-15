@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `show_on_homepage` integer DEFAULT true NOT NULL;
