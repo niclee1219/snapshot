@@ -12,6 +12,7 @@ import {
   sharePhotos,
 } from "./actions";
 import { accentInkFor } from "@/lib/accent-color";
+import { SiteFooter } from "@/components/site-footer";
 
 export type GalleryPhoto = {
   id: string;
@@ -444,17 +445,7 @@ export function Gallery({
         />
       )}
 
-      <footer className="pb-10 text-center text-xs text-[var(--mist)]">
-        Powered by{" "}
-        <a
-          href="https://pixolateds.com"
-          target="_blank"
-          rel="noopener"
-          className="text-[var(--mist)] transition-colors hover:text-[var(--ink-strong)] hover:underline"
-        >
-          pixolateds
-        </a>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

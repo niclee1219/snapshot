@@ -8,6 +8,7 @@ import { getDbAsync } from "@/db";
 import { photos } from "@/db/schema";
 import { cn } from "@/lib/utils";
 import { formatEventDate } from "@/components/gallery/format-date";
+import { SiteFooter } from "@/components/site-footer";
 
 export async function generateMetadata({
   params,
@@ -145,7 +146,7 @@ export default async function TenantHome({
                   style={{ animationDelay: `${0.07 * Math.min(i, 10)}s` }}
                 >
                   <Link
-                    href={`/s/${slug}/${ev.urlSlug}`}
+                    href={`/${ev.urlSlug}`}
                     className="group block"
                   >
                     {coverUrl ? (
@@ -181,17 +182,9 @@ export default async function TenantHome({
           </ul>
         )}
 
-        <footer className="mt-20 text-center text-xs text-[var(--mist)]">
-          Powered by{" "}
-          <a
-            href="https://pixolateds.com"
-            target="_blank"
-            rel="noopener"
-            className="text-[var(--mist)] transition-colors hover:text-[var(--ink-strong)] hover:underline"
-          >
-            pixolateds
-          </a>
-        </footer>
+        <div className="mt-20">
+          <SiteFooter />
+        </div>
       </div>
     </div>
   );
