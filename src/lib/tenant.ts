@@ -55,6 +55,38 @@ export async function getVisiblePhotos(eventId: string, sortMode: string) {
     .all();
 }
 
+/** The event's designated cover photo, falling back to the first visible photo
+ * in the event's configured sort order (including when the designated cover
+ * has been hidden or deleted). Returns null for an event with no photos. */
+export async function getEventCoverPhoto(event: {
+  id: string;
+  coverPhotoId: string | null;
+  sortMode: string;
+}) {
+  const db = await getDbAsync();
+  if (event.coverPhotoId) {
+    const cover = await db
+      .select()
+      .from(photos)
+      .where(eq(photos.id, event.coverPhotoId))
+      .get();
+    if (cover) return cover;
+  }
+  const orderBy =
+    event.sortMode === "manual"
+      ? [asc(photos.sortIndex), asc(photos.createdAt)]
+      : [asc(photos.capturedAt), asc(photos.createdAt)];
+  return (
+    (await db
+      .select()
+      .from(photos)
+      .where(and(eq(photos.eventId, event.id), eq(photos.hidden, false)))
+      .orderBy(...orderBy)
+      .limit(1)
+      .get()) ?? null
+  );
+}
+
 /** Segments for an event, in configured display order. */
 export async function getEventSegments(eventId: string) {
   const db = await getDbAsync();

@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   getCompanyBySlug,
+  getEventCoverPhoto,
   getEventSegments,
   getPublishedEvent,
   getVisiblePhotos,
@@ -28,7 +29,28 @@ export async function generateMetadata({
   const company = await getCompanyBySlug(slug);
   if (!company) return {};
   const event = await getPublishedEvent(company.id, eventSlug);
-  return { title: event ? `${event.name} — ${company.name}` : company.name };
+  if (!event) return { title: company.name };
+
+  const [mediaBase, cover] = await Promise.all([
+    getMediaBase(),
+    getEventCoverPhoto(event),
+  ]);
+  const imageUrl = cover ? mediaUrl(mediaBase, cover.keyDisplay) : undefined;
+
+  return {
+    title: event.name,
+    openGraph: {
+      title: event.name,
+      description: company.name,
+      images: imageUrl ? [{ url: imageUrl }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: event.name,
+      description: company.name,
+      images: imageUrl ? [imageUrl] : undefined,
+    },
+  };
 }
 
 export default async function EventGalleryPage({
