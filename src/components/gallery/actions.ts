@@ -75,20 +75,37 @@ export async function sharePhotos(
   if (photos.length > SHARE_LIMIT) return "too-many";
   if (!canShareFiles()) return "unsupported";
 
-  const files = await Promise.all(
-    photos.map(async (p) => {
-      // Share uses the compressed display variant (~1600px WebP), not the
-      // full-resolution original — sharing is for quick viewing, not
-      // archival, and originals can be 10MB+ each, making the share sheet
-      // slow to open or falling back to a huge ZIP download.
-      const res = await fetch(p.displayUrl);
-      const blob = await res.blob();
-      const name = (p.fileName || "photo.jpg").replace(/\.\w+$/, ".webp");
-      return new File([blob], name, {
-        type: blob.type || "image/webp",
-      });
-    }),
-  );
+  let files: File[];
+  try {
+    // Share uses the compressed display variant (~1600px WebP), not the
+    // full-resolution original — sharing is for quick viewing, not
+    // archival, and originals can be 10MB+ each, making the share sheet
+    // slow to open or falling back to a huge ZIP download.
+    files = await Promise.all(
+      photos.map(async (p) => {
+        const res = await fetch(p.displayUrl);
+        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+        const blob = await res.blob();
+        const name = (p.fileName || "photo.jpg").replace(/\.\w+$/, ".webp");
+        return new File([blob], name, {
+          type: blob.type || "image/webp",
+        });
+      }),
+    );
+  } catch {
+    // A fetch failing here used to throw straight out of sharePhotos,
+    // uncaught by any caller — the Share button would just go silent with
+    // no fallback. Report "failed" instead so callers fall back to a
+    // regular download, same as when navigator.share() itself fails below.
+    return "failed";
+  }
+
+  // Some share targets (notably the OS-level share sheet on certain
+  // platforms) don't accept WebP even though the earlier jpg-probe in
+  // canShareFiles() said sharing files was possible in general — checking
+  // the real files here catches that up front instead of letting
+  // navigator.share() throw.
+  if (!navigator.canShare({ files })) return "failed";
 
   try {
     await navigator.share({ files, title });

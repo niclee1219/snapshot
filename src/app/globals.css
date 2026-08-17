@@ -137,13 +137,18 @@ body {
 }
 
 @keyframes bar-up {
+	/* Animates the `translate` property, not `transform` — the element also
+	   carries Tailwind's `-translate-x-1/2` utility, which (Tailwind v4)
+	   writes to `translate` too. `translate` and `transform` compose
+	   independently, so animating `transform: translate(-50%, ...)` here
+	   would stack on top of the utility's -50% and double the shift. */
 	from {
 		opacity: 0;
-		transform: translate(-50%, 16px);
+		translate: -50% 16px;
 	}
 	to {
 		opacity: 1;
-		transform: translate(-50%, 0);
+		translate: -50% 0;
 	}
 }
 
@@ -235,11 +240,14 @@ body {
 	}
 
 	.bar-up {
-		/* transform here also centers the bar horizontally (translateX -50%),
-		   not just the entrance animation, so it can't be reset to none. */
+		/* `translate` here also centers the bar horizontally (-50%), not just
+		   the entrance animation, so it can't be reset to none — and it must
+		   stay the `translate` property, not `transform` (see the bar-up
+		   keyframes above), or it double-stacks with Tailwind's
+		   -translate-x-1/2 utility on the same element. */
 		animation: none;
 		opacity: 1;
-		transform: translate(-50%, 0);
+		translate: -50% 0;
 	}
 
 	.gallery-intro {
