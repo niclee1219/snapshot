@@ -188,6 +188,8 @@ export function Lightbox({
                 if (result === "unsupported" || result === "failed") {
                   await downloadSingle(eventId, currentPhoto);
                 }
+              } catch {
+                alert("Download failed — please try again.");
               } finally {
                 setBusy(null);
               }
