@@ -58,6 +58,26 @@ export function Lightbox({
   // are for rendering only) — see PHOTO_SWAP_MS.
   const currentPhoto = photos[index];
 
+  // Progressive full-res upgrade: the visible <img> always starts on the fast,
+  // pre-cached `displayUrl` (1600px). Once the untouched `originalUrl` for the
+  // *current* photo has finished loading in the background, we flip to it for a
+  // sharper view. `fullResId` only ever matches one photo at a time, so swiping
+  // away mid-load naturally falls back to displayUrl for the new photo without
+  // needing to cancel the in-flight Image() — a late load just gets ignored.
+  const [fullResId, setFullResId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setFullResId(photo.id);
+    };
+    img.src = photo.originalUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [photo.id, photo.originalUrl]);
+  const photoSrc = fullResId === photo.id ? photo.originalUrl : photo.displayUrl;
+
   const go = useCallback(
     (delta: number) => {
       if (photos.length <= 1) return;
@@ -141,7 +161,7 @@ export function Lightbox({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           key={photo.id}
-          src={photo.displayUrl}
+          src={photoSrc}
           alt={photo.fileName}
           draggable={false}
           className={`max-h-full max-w-full select-none object-contain transition-transform ${

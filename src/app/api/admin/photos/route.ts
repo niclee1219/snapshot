@@ -55,6 +55,16 @@ export async function POST(req: NextRequest) {
     };
   });
 
-  await db.insert(photos).values(rows);
+  // Each row binds 11 params; D1 caps bound parameters at 100 per statement, so
+  // a single insert of >9 rows (>99 params) throws. Chunk into multiple insert
+  // statements and submit them together via db.batch() to keep this one atomic
+  // round-trip — mirrors the chunking pattern used for reorderPhotos/deletePhotos.
+  const ROWS_PER_INSERT = 9;
+  const chunks: (typeof rows)[] = [];
+  for (let i = 0; i < rows.length; i += ROWS_PER_INSERT) {
+    chunks.push(rows.slice(i, i + ROWS_PER_INSERT));
+  }
+  const statements = chunks.map((chunk) => db.insert(photos).values(chunk));
+  await db.batch([statements[0], ...statements.slice(1)]);
   return NextResponse.json({ ok: true, count: rows.length });
 }
