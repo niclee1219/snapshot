@@ -42,6 +42,7 @@ export async function generateMetadata({
     openGraph: {
       title: event.name,
       description: company.name,
+      siteName: company.name,
       images: imageUrl ? [{ url: imageUrl }] : undefined,
     },
     twitter: {
