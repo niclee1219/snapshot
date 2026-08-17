@@ -14,7 +14,14 @@ export async function downloadSingle(
   photo: GalleryPhoto,
   variant: "original" | "display" = "original",
 ) {
-  const res = await fetch(variant === "display" ? photo.displayUrl : photo.originalUrl);
+  const res = await fetch(
+    variant === "display" ? photo.displayUrl : photo.originalUrl,
+    // The lightbox's <img> tag loads this same URL without an Origin header
+    // (no-cors), and R2 caches that response for 4h without CORS headers.
+    // A cache-mode fetch() would reuse that cached response and fail CORS
+    // instantly without ever hitting the network — force a real request.
+    { cache: "reload" },
+  );
   if (!res.ok) throw new Error("Download failed");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -83,7 +90,9 @@ export async function sharePhotos(
     // slow to open or falling back to a huge ZIP download.
     files = await Promise.all(
       photos.map(async (p) => {
-        const res = await fetch(p.displayUrl);
+        // See downloadSingle: force a real network request so the cached,
+        // Origin-less <img> response (no CORS headers, 4h TTL) isn't reused.
+        const res = await fetch(p.displayUrl, { cache: "reload" });
         if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
         const blob = await res.blob();
         const name = (p.fileName || "photo.jpg").replace(/\.\w+$/, ".webp");
