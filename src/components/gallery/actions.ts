@@ -100,13 +100,12 @@ export async function sharePhotos(
     return "failed";
   }
 
-  // Some share targets (notably the OS-level share sheet on certain
-  // platforms) don't accept WebP even though the earlier jpg-probe in
-  // canShareFiles() said sharing files was possible in general — checking
-  // the real files here catches that up front instead of letting
-  // navigator.share() throw.
-  if (!navigator.canShare({ files })) return "failed";
-
+  // Deliberately no `navigator.canShare({ files })` pre-check here: several
+  // mobile browsers (notably Android Chrome/WebView) under-report `false`
+  // for multi-file arrays even though the actual navigator.share() call
+  // below succeeds with those same files — gating on it here blocked every
+  // multi-photo share and forced the ZIP-download fallback. Just attempt
+  // the real share and let the catch below handle genuine failures.
   try {
     await navigator.share({ files, title });
     track(eventId, "share");
