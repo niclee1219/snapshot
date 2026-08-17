@@ -9,13 +9,19 @@ import { pinCookieName, verifyAccessCookieValue } from "@/lib/pin";
 const MAX_ZIP_PHOTOS = 500;
 
 /**
- * Streams a ZIP of original photos straight from R2 through the Worker —
- * no buffering, no compression (photos are already compressed), free egress.
+ * Streams a ZIP of photos straight from R2 through the Worker — no
+ * buffering, no compression (photos are already compressed), free egress.
  * Invoked via form POST so the browser natively streams the download.
+ *
+ * `variant` picks which R2 object per photo: "original" (full-res, as
+ * uploaded, up to 30MB) for genuine downloads, or "display" (resized
+ * ~1600px WebP) for the Share button's fallback path, where the point is
+ * speed, not archival quality.
  */
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const eventId = String(form.get("eventId") ?? "");
+  const variant = form.get("variant") === "display" ? "display" : "original";
   const ids = String(form.get("ids") ?? "")
     .split(",")
     .filter(Boolean)
@@ -71,9 +77,11 @@ export async function POST(req: NextRequest) {
   const seen = new Map<string, number>();
   async function* entries() {
     for (const row of rows) {
-      const object = await env.MEDIA.get(row.keyOriginal);
+      const key = variant === "display" ? row.keyDisplay : row.keyOriginal;
+      const object = await env.MEDIA.get(key);
       if (!object) continue;
       let name = row.fileName || "photo.jpg";
+      if (variant === "display") name = name.replace(/\.\w+$/, ".webp");
       const n = (seen.get(name) ?? 0) + 1;
       seen.set(name, n);
       if (n > 1) {

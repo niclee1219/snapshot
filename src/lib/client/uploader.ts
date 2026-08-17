@@ -89,8 +89,10 @@ export async function uploadFiles(
     batch.forEach((it, idx) => presigned.set(it.id, data.files[idx]));
   }
 
-  // 2. Process + upload with a small worker pool.
-  const completed: UploadedMeta[] = [];
+  // 2. Process + upload with a small worker pool. Items sit at "uploading"
+  // (not "done") until their metadata is actually persisted in step 3 — an
+  // item is only really "done" once the gallery can show it.
+  const completed: (UploadedMeta & { itemId: string })[] = [];
   const queue = items.filter((it) => presigned.has(it.id));
   let cursor = 0;
 
@@ -114,6 +116,7 @@ export async function uploadFiles(
         ]);
 
         completed.push({
+          itemId: item.id,
           uid: signed.uid,
           ext: extOf(item.file),
           fileName: item.file.name,
@@ -122,7 +125,6 @@ export async function uploadFiles(
           sizeBytes: item.file.size,
           capturedAt: processed.capturedAt,
         });
-        onItemUpdate(item.id, { status: "done" });
       } catch (err) {
         onItemUpdate(item.id, {
           status: "failed",
@@ -136,20 +138,34 @@ export async function uploadFiles(
     Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker),
   );
 
-  // 3. Record metadata for everything that made it.
+  // 3. Record metadata for everything that made it. Only now do items become
+  // "done" — if this fails, the affected items flip to "failed" instead of
+  // silently staying "done" while their DB rows never exist.
+  let done = 0;
   for (let i = 0; i < completed.length; i += METADATA_BATCH) {
     const batch = completed.slice(i, i + METADATA_BATCH);
     const res = await fetch("/api/admin/photos", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ eventId, uploaded: batch }),
+      body: JSON.stringify({
+        eventId,
+        uploaded: batch.map(({ itemId: _itemId, ...meta }) => meta),
+      }),
     });
     if (!res.ok) {
-      // R2 objects exist but rows failed — surface loudly so the admin retries.
-      throw new Error("Failed to record uploaded photos. Please retry.");
+      // R2 objects exist but rows failed — mark visibly failed so the admin retries.
+      batch.forEach((it) =>
+        onItemUpdate(it.itemId, {
+          status: "failed",
+          error: "Failed to record uploaded photo. Please retry.",
+        }),
+      );
+      continue;
     }
+    batch.forEach((it) => onItemUpdate(it.itemId, { status: "done" }));
+    done += batch.length;
   }
 
-  const failed = items.length - completed.length;
-  return { done: completed.length, failed };
+  const failed = items.length - done;
+  return { done, failed };
 }

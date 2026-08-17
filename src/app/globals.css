@@ -228,11 +228,18 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
 	.tile-in,
-	.fade-in,
-	.bar-up {
+	.fade-in {
 		animation: none;
 		opacity: 1;
 		transform: none;
+	}
+
+	.bar-up {
+		/* transform here also centers the bar horizontally (translateX -50%),
+		   not just the entrance animation, so it can't be reset to none. */
+		animation: none;
+		opacity: 1;
+		transform: translate(-50%, 0);
 	}
 
 	.gallery-intro {

@@ -9,8 +9,12 @@ export function track(eventId: string, kind: "download" | "share") {
   }).catch(() => {});
 }
 
-export async function downloadSingle(eventId: string, photo: GalleryPhoto) {
-  const res = await fetch(photo.originalUrl);
+export async function downloadSingle(
+  eventId: string,
+  photo: GalleryPhoto,
+  variant: "original" | "display" = "original",
+) {
+  const res = await fetch(variant === "display" ? photo.displayUrl : photo.originalUrl);
   if (!res.ok) throw new Error("Download failed");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -25,7 +29,11 @@ export async function downloadSingle(eventId: string, photo: GalleryPhoto) {
 }
 
 /** Streams a ZIP via form POST so the browser downloads without buffering in JS. */
-export function downloadZipOf(eventId: string, photoIds: string[]) {
+export function downloadZipOf(
+  eventId: string,
+  photoIds: string[],
+  variant: "original" | "display" = "original",
+) {
   const form = document.createElement("form");
   form.method = "POST";
   form.action = "/api/public/zip";
@@ -39,6 +47,7 @@ export function downloadZipOf(eventId: string, photoIds: string[]) {
   };
   add("eventId", eventId);
   add("ids", photoIds.join(","));
+  add("variant", variant);
   document.body.appendChild(form);
   form.submit();
   form.remove();
@@ -68,10 +77,15 @@ export async function sharePhotos(
 
   const files = await Promise.all(
     photos.map(async (p) => {
-      const res = await fetch(p.originalUrl);
+      // Share uses the compressed display variant (~1600px WebP), not the
+      // full-resolution original — sharing is for quick viewing, not
+      // archival, and originals can be 10MB+ each, making the share sheet
+      // slow to open or falling back to a huge ZIP download.
+      const res = await fetch(p.displayUrl);
       const blob = await res.blob();
-      return new File([blob], p.fileName || "photo.jpg", {
-        type: blob.type || "image/jpeg",
+      const name = (p.fileName || "photo.jpg").replace(/\.\w+$/, ".webp");
+      return new File([blob], name, {
+        type: blob.type || "image/webp",
       });
     }),
   );

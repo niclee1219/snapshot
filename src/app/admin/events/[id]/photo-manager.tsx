@@ -73,6 +73,7 @@ export function PhotoManager({
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [order, setOrder] = useState<string[] | null>(null);
+  const [sortMode, setSortMode] = useState<"manual" | "name">("manual");
   const [actionPending, startAction] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
   const sensors = useSensors(
@@ -114,6 +115,16 @@ export function PhotoManager({
     const unassigned = ordered.filter((p) => groupKeyOf(p) === null);
     if (unassigned.length > 0) {
       result.push({ segmentId: null, name: "Unassigned", photos: unassigned });
+    }
+    // Name sort is a display-only view, independent of the draggable manual
+    // order — it doesn't touch `order`/`ordered`, so switching back to
+    // "Manual" restores whatever custom order was last saved (or in progress).
+    if (sortMode === "name") {
+      for (const group of result) {
+        group.photos = [...group.photos].sort((a, b) =>
+          a.fileName.localeCompare(b.fileName, undefined, { numeric: true }),
+        );
+      }
     }
     return result;
   })();
@@ -213,6 +224,18 @@ export function PhotoManager({
             Photos ({photos.length})
           </h2>
           <div className="flex items-center gap-2">
+            <Select
+              value={sortMode}
+              onValueChange={(value) => setSortMode(value as "manual" | "name")}
+            >
+              <SelectTrigger size="sm" className="w-[132px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">Manual order</SelectItem>
+                <SelectItem value="name">Name (A–Z)</SelectItem>
+              </SelectContent>
+            </Select>
             <input
               ref={fileInput}
               type="file"
@@ -360,6 +383,44 @@ export function PhotoManager({
           >
             Drop photos here or click to upload
           </button>
+        ) : sortMode === "name" ? (
+          // Name sort is a fixed view order, so dragging to reorder doesn't
+          // apply here — render plain (non-sortable) tiles.
+          groups.map((group) => {
+            const segmentIndex = group.segmentId
+              ? segments.findIndex((s) => s.id === group.segmentId)
+              : -1;
+            return (
+              <div key={group.segmentId ?? "__unassigned__"} className="mt-4">
+                {isGrouped && (
+                  <div className="mb-2 flex items-center gap-2">
+                    {segmentIndex >= 0 && (
+                      <span
+                        className={`h-2 w-2 rounded-full ${segmentSwatchClass(segmentIndex)}`}
+                      />
+                    )}
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.name} ({group.photos.length})
+                    </h3>
+                  </div>
+                )}
+                <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  {group.photos.map((photo) => (
+                    <StaticPhotoTile
+                      key={photo.id}
+                      photo={photo}
+                      selected={selected.has(photo.id)}
+                      onToggleSelect={() => toggleSelect(photo.id)}
+                      segmentName={segmentIndex >= 0 ? group.name : null}
+                      segmentColor={
+                        segmentIndex >= 0 ? segmentColorClass(segmentIndex) : null
+                      }
+                    />
+                  ))}
+                </ul>
+              </div>
+            );
+          })
         ) : (
           <DndContext
             sensors={sensors}
@@ -411,49 +472,39 @@ export function PhotoManager({
           </DndContext>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          Drag photos to reorder. Click to select. JPEG/PNG/WebP up to 30MB each.
+          {sortMode === "manual"
+            ? "Drag photos to reorder. Click to select. JPEG/PNG/WebP up to 30MB each."
+            : "Click to select. JPEG/PNG/WebP up to 30MB each."}
         </p>
       </CardContent>
     </Card>
   );
 }
 
-function PhotoTile({
-  photo,
-  selected,
-  onToggleSelect,
-  segmentName,
-  segmentColor,
-}: {
+type TileProps = {
   photo: AdminPhoto;
   selected: boolean;
   onToggleSelect: () => void;
   segmentName: string | null;
   segmentColor: string | null;
-}) {
-  const { listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: photo.id });
+};
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
+/** Shared visual content for a photo tile — badges, thumbnail, select mark. */
+function TileContent({
+  photo,
+  selected,
+  segmentName,
+  segmentColor,
+}: TileProps) {
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      className={`group relative aspect-square cursor-pointer touch-none overflow-hidden rounded-md border-2 ${
-        selected ? "border-foreground" : "border-transparent"
-      } ${isDragging ? "z-10 scale-105 opacity-70 shadow-lg" : ""}`}
-      onClick={onToggleSelect}
-    >
+    <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={photo.thumbUrl}
         alt={photo.fileName}
+        title={photo.fileName}
         loading="lazy"
+        draggable={false}
         className={`h-full w-full object-cover transition-opacity ${
           photo.hidden ? "opacity-30" : ""
         }`}
@@ -482,6 +533,49 @@ function PhotoTile({
       >
         ✓
       </span>
+    </>
+  );
+}
+
+/** Draggable tile used in manual sort mode (must live inside a DndContext). */
+function PhotoTile(props: TileProps) {
+  const { photo, selected, onToggleSelect } = props;
+  const { listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: photo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      title={photo.fileName}
+      className={`group relative aspect-square cursor-pointer touch-none overflow-hidden rounded-md border-2 ${
+        selected ? "border-foreground" : "border-transparent"
+      } ${isDragging ? "z-10 scale-105 opacity-70 shadow-lg" : ""}`}
+      onClick={onToggleSelect}
+    >
+      <TileContent {...props} />
+    </li>
+  );
+}
+
+/** Plain (non-draggable) tile used in name sort mode. */
+function StaticPhotoTile(props: TileProps) {
+  const { photo, selected, onToggleSelect } = props;
+  return (
+    <li
+      title={photo.fileName}
+      className={`group relative aspect-square cursor-pointer overflow-hidden rounded-md border-2 ${
+        selected ? "border-foreground" : "border-transparent"
+      }`}
+      onClick={onToggleSelect}
+    >
+      <TileContent {...props} />
     </li>
   );
 }

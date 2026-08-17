@@ -195,22 +195,25 @@ export function Gallery({
       if (result === "too-many") {
         alert("Sharing works best with up to 10 photos — download instead.");
       } else if (result === "unsupported" || result === "failed") {
-        await handleDownload();
+        // Same "fast, compressed" intent as sharePhotos itself — the Web
+        // Share API just isn't available, not a request for the original.
+        await handleDownload("display");
       }
     } finally {
       setBusy(null);
     }
   }
 
-  async function handleDownload() {
+  async function handleDownload(variant: "original" | "display" = "original") {
     setBusy("download");
     try {
       if (selectedPhotos.length === 1) {
-        await downloadSingle(eventId, selectedPhotos[0]);
+        await downloadSingle(eventId, selectedPhotos[0], variant);
       } else {
         downloadZipOf(
           eventId,
           selectedPhotos.map((p) => p.id),
+          variant,
         );
       }
     } catch {
@@ -412,7 +415,7 @@ export function Gallery({
           )}
           <button
             disabled={busy !== null}
-            onClick={handleDownload}
+            onClick={() => handleDownload()}
             className={`rounded-full px-4 py-2 text-xs font-medium disabled:opacity-50 ${
               shareSupported
                 ? "border border-[var(--hairline)] text-[var(--ink-strong)]"
