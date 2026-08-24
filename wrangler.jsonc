@@ -55,14 +55,5 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true,
-	// Default 30s CPU budget isn't enough for large zip downloads: building a
-	// zip requires computing a CRC-32 over every byte of every photo (real CPU
-	// work, unlike the R2 reads themselves), and a big gallery's worth of
-	// full-resolution originals can exceed that before the stream finishes —
-	// which truncates the response mid-download into a corrupt zip. 300000ms
-	// (5 min) is the platform max.
-	"limits": {
-		"cpu_ms": 300000
-	}
+	"upload_source_maps": true
 }
