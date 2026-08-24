@@ -22,6 +22,7 @@ export type GalleryPhoto = {
   fileName: string;
   width: number;
   height: number;
+  sizeBytes: number;
   segmentId?: string | null;
 };
 
@@ -64,6 +65,10 @@ export function Gallery({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    part: number;
+    total: number;
+  } | null>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareSupported = useMemo(() => canShareFiles(), []);
 
@@ -210,21 +215,20 @@ export function Gallery({
       if (selectedPhotos.length === 1) {
         await downloadSingle(eventId, selectedPhotos[0], variant);
       } else {
-        const result = await downloadZipOf(
+        await downloadZipOf(
           eventId,
-          selectedPhotos.map((p) => p.id),
+          eventName,
+          selectedPhotos,
           variant,
+          (part, total) =>
+            setDownloadProgress(total > 1 ? { part, total } : null),
         );
-        if (result.truncated) {
-          alert(
-            `This gallery has ${result.total} photos — only the first ${result.included} were included in this zip. Select photos in smaller batches to get the rest.`,
-          );
-        }
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Download failed — please try again.");
     } finally {
       setBusy(null);
+      setDownloadProgress(null);
     }
   }
 
@@ -428,7 +432,11 @@ export function Gallery({
             }`}
             style={shareSupported ? undefined : { background: "var(--accent)" }}
           >
-            {busy === "download" ? "Preparing…" : "Download"}
+            {busy === "download"
+              ? downloadProgress
+                ? `Preparing ${downloadProgress.part}/${downloadProgress.total}…`
+                : "Preparing…"
+              : "Download"}
           </button>
           <button
             onClick={exitSelect}

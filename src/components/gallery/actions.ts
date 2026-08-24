@@ -41,16 +41,43 @@ const ZIP_ERROR_MESSAGES: Record<number, string> = {
   404: "Those photos couldn't be found — try refreshing the page.",
 };
 
-/**
- * Fetches the ZIP as a blob rather than a raw form POST so failures (bad
- * PIN, unpublished event, server error) and partial results (the server's
- * MAX_ZIP_PHOTOS cap) can be reported instead of the browser silently doing
- * nothing.
- */
-export async function downloadZipOf(
+// Workers has a hard 128MB memory ceiling (fixed on every plan — it can't be
+// raised), and streaming a very large ZIP through a single request eventually
+// trips it. Splitting a big selection into several smaller ZIP requests keeps
+// each one comfortably clear of that ceiling regardless of total gallery size.
+const MAX_BATCH_PHOTOS = 80;
+const MAX_BATCH_BYTES = 300 * 1024 * 1024;
+
+function batchPhotosForZip(photos: GalleryPhoto[]): GalleryPhoto[][] {
+  const batches: GalleryPhoto[][] = [];
+  let current: GalleryPhoto[] = [];
+  let currentBytes = 0;
+  for (const photo of photos) {
+    const wouldOverflow =
+      current.length >= MAX_BATCH_PHOTOS ||
+      (current.length > 0 && currentBytes + photo.sizeBytes > MAX_BATCH_BYTES);
+    if (wouldOverflow) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(photo);
+    currentBytes += photo.sizeBytes;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-z0-9-_]/gi, "_") || "photos";
+}
+
+/** Fetches one ZIP batch as a blob and triggers a client-side save. */
+async function downloadZipBatch(
   eventId: string,
   photoIds: string[],
-  variant: "original" | "display" = "original",
+  variant: "original" | "display",
+  filenameOverride?: string,
 ) {
   const res = await fetch("/api/public/zip", {
     method: "POST",
@@ -67,23 +94,50 @@ export async function downloadZipOf(
 
   const blob = await res.blob();
   const disposition = res.headers.get("content-disposition") ?? "";
-  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "photos.zip";
+  const serverFilename =
+    /filename="([^"]+)"/.exec(disposition)?.[1] ?? "photos.zip";
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = filenameOverride ?? serverFilename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  track(eventId, "download");
+}
 
-  if (res.headers.get("x-zip-truncated") === "1") {
-    const total = res.headers.get("x-zip-total");
-    const included = res.headers.get("x-zip-included");
-    return { truncated: true as const, total, included };
+/**
+ * Downloads a selection as one or more ZIPs, splitting large selections into
+ * multiple smaller downloads (see MAX_BATCH_* above) so no single request
+ * risks the Worker's memory ceiling. Fetches each batch as a blob (rather
+ * than a raw form POST) so failures and partial results can be reported
+ * instead of the browser silently doing nothing.
+ */
+export async function downloadZipOf(
+  eventId: string,
+  eventName: string,
+  photos: GalleryPhoto[],
+  variant: "original" | "display" = "original",
+  onProgress?: (part: number, total: number) => void,
+) {
+  const batches = batchPhotosForZip(photos);
+  const multiPart = batches.length > 1;
+
+  for (let i = 0; i < batches.length; i++) {
+    onProgress?.(i + 1, batches.length);
+    const filename = multiPart
+      ? `${sanitizeFilename(eventName)}-photos-part${i + 1}-of-${batches.length}.zip`
+      : undefined;
+    await downloadZipBatch(
+      eventId,
+      batches[i].map((p) => p.id),
+      variant,
+      filename,
+    );
   }
-  return { truncated: false as const };
+
+  track(eventId, "download");
+  return { parts: batches.length };
 }
 
 export function canShareFiles(): boolean {

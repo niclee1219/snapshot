@@ -121,6 +121,7 @@ export default async function EventGalleryPage({
     fileName: p.fileName,
     width: p.width,
     height: p.height,
+    sizeBytes: p.sizeBytes,
     segmentId: p.segmentId,
   }));
 
