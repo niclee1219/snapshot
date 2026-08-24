@@ -17,6 +17,11 @@ import {
 } from "@/lib/auth";
 import { slugify, validateCompanySlug } from "@/lib/slugs";
 import { hashPin } from "@/lib/pin";
+import { chunk } from "@/lib/utils";
+
+// D1 (SQLite) rejects a query with more than 100 bound parameters — any
+// `inArray(photos.id, ids)` filter needs the id list batched under that.
+const ID_QUERY_CHUNK_SIZE = 90;
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
 
@@ -339,11 +344,18 @@ export async function deletePhotos(eventId: string, photoIds: string[]) {
   const { event } = await requireOwnedEvent(eventId);
   if (photoIds.length === 0) return;
   const db = await getDbAsync();
-  const rows = await db
-    .select()
-    .from(photos)
-    .where(and(eq(photos.eventId, event.id), inArray(photos.id, photoIds)))
-    .all();
+  const idBatches = chunk(photoIds, ID_QUERY_CHUNK_SIZE);
+  const rows = (
+    await Promise.all(
+      idBatches.map((idBatch) =>
+        db
+          .select()
+          .from(photos)
+          .where(and(eq(photos.eventId, event.id), inArray(photos.id, idBatch)))
+          .all(),
+      ),
+    )
+  ).flat();
 
   const keys = rows.flatMap((r) => [r.keyOriginal, r.keyDisplay, r.keyThumb]);
   const { env } = await getCloudflareContext({ async: true });
@@ -351,9 +363,13 @@ export async function deletePhotos(eventId: string, photoIds: string[]) {
     await env.MEDIA.delete(keys.slice(i, i + 1000));
   }
 
-  await db
-    .delete(photos)
-    .where(and(eq(photos.eventId, event.id), inArray(photos.id, photoIds)));
+  await Promise.all(
+    idBatches.map((idBatch) =>
+      db
+        .delete(photos)
+        .where(and(eq(photos.eventId, event.id), inArray(photos.id, idBatch))),
+    ),
+  );
 
   if (event.coverPhotoId && photoIds.includes(event.coverPhotoId)) {
     await db
@@ -372,10 +388,14 @@ export async function setPhotosHidden(
   const { event } = await requireOwnedEvent(eventId);
   if (photoIds.length === 0) return;
   const db = await getDbAsync();
-  await db
-    .update(photos)
-    .set({ hidden })
-    .where(and(eq(photos.eventId, event.id), inArray(photos.id, photoIds)));
+  await Promise.all(
+    chunk(photoIds, ID_QUERY_CHUNK_SIZE).map((idBatch) =>
+      db
+        .update(photos)
+        .set({ hidden })
+        .where(and(eq(photos.eventId, event.id), inArray(photos.id, idBatch))),
+    ),
+  );
   revalidatePath(`/admin/events/${event.id}`);
 }
 

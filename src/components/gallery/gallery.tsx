@@ -210,14 +210,19 @@ export function Gallery({
       if (selectedPhotos.length === 1) {
         await downloadSingle(eventId, selectedPhotos[0], variant);
       } else {
-        downloadZipOf(
+        const result = await downloadZipOf(
           eventId,
           selectedPhotos.map((p) => p.id),
           variant,
         );
+        if (result.truncated) {
+          alert(
+            `This gallery has ${result.total} photos — only the first ${result.included} were included in this zip. Select photos in smaller batches to get the rest.`,
+          );
+        }
       }
-    } catch {
-      alert("Download failed — please try again.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Download failed — please try again.");
     } finally {
       setBusy(null);
     }

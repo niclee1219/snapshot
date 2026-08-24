@@ -35,29 +35,55 @@ export async function downloadSingle(
   track(eventId, "download");
 }
 
-/** Streams a ZIP via form POST so the browser downloads without buffering in JS. */
-export function downloadZipOf(
+const ZIP_ERROR_MESSAGES: Record<number, string> = {
+  400: "That download request was invalid — please try again.",
+  403: "This gallery is PIN-protected — unlock it and try again.",
+  404: "Those photos couldn't be found — try refreshing the page.",
+};
+
+/**
+ * Fetches the ZIP as a blob rather than a raw form POST so failures (bad
+ * PIN, unpublished event, server error) and partial results (the server's
+ * MAX_ZIP_PHOTOS cap) can be reported instead of the browser silently doing
+ * nothing.
+ */
+export async function downloadZipOf(
   eventId: string,
   photoIds: string[],
   variant: "original" | "display" = "original",
 ) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = "/api/public/zip";
-  form.style.display = "none";
-  const add = (name: string, value: string) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  };
-  add("eventId", eventId);
-  add("ids", photoIds.join(","));
-  add("variant", variant);
-  document.body.appendChild(form);
-  form.submit();
-  form.remove();
+  const res = await fetch("/api/public/zip", {
+    method: "POST",
+    body: new URLSearchParams({
+      eventId,
+      ids: photoIds.join(","),
+      variant,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(ZIP_ERROR_MESSAGES[res.status] ?? "Download failed");
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "photos.zip";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  track(eventId, "download");
+
+  if (res.headers.get("x-zip-truncated") === "1") {
+    const total = res.headers.get("x-zip-total");
+    const included = res.headers.get("x-zip-included");
+    return { truncated: true as const, total, included };
+  }
+  return { truncated: false as const };
 }
 
 export function canShareFiles(): boolean {
